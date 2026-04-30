@@ -1,0 +1,127 @@
+name: MagicLight Pipeline v3
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run Mode'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'        # Video Making only
+          - '2'        # Video Process only
+          - combined   # Generate + Process inline
+      quantity:
+        description: 'Quantity Limit (0 = All Pending)'
+        required: true
+        default: '1'
+        type: string
+      upload_drive:
+        description: 'Upload to Google Drive?'
+        required: true
+        default: true
+        type: boolean
+      loop:
+        description: 'Run on loop until cancelled?'
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: magiclight-pipeline
+  cancel-in-progress: true
+
+jobs:
+  run-pipeline:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Browsers
+        run: playwright install --with-deps chromium
+
+      - name: Set up FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          architecture: x64
+
+      - name: Decode Secrets
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+          ACCOUNTS_TXT: ${{ secrets.ACCOUNTS_TXT }}
+        shell: pwsh
+        run: |
+          function Write-TextFile([string]$path, [string]$content) {
+            if (-not $content -or $content.Trim() -eq "") { return }
+            $content | Out-File -FilePath $path -Encoding utf8 -NoNewline
+          }
+          Write-TextFile -path "credentials.json" -content $env:GCP_CREDENTIALS
+          Write-TextFile -path ".env"              -content $env:ENV_FILE
+          Write-TextFile -path "accounts.txt"      -content $env:ACCOUNTS_TXT
+
+      - name: Ensure SHEET_ID in .env
+        shell: pwsh
+        env:
+          SHEET_ID: ${{ vars.SHEET_ID }}
+          SHEET_NAME: ${{ vars.SHEET_NAME }}
+          DRIVE_FOLDER_ID: ${{ vars.DRIVE_FOLDER_ID }}
+        run: |
+          function Set-EnvLine([string]$path, [string]$key, [string]$value) {
+            if (-not $value) { return }
+            $lines = if (Test-Path $path) { Get-Content $path } else { @() }
+            $ek = [regex]::Escape($key)
+            if ($lines -match "^$ek=") {
+              $lines = $lines | ForEach-Object { if ($_ -match "^$ek=") { "$key=$value" } else { $_ } }
+            } else { $lines += "$key=$value" }
+            Set-Content -LiteralPath $path -Value $lines -Encoding utf8
+          }
+          if (-not (Test-Path .env)) { '' | Out-File -FilePath .env -Encoding utf8 }
+          Set-EnvLine .env 'SHEET_ID'        $env:SHEET_ID
+          Set-EnvLine .env 'SHEET_NAME'      $env:SHEET_NAME
+          Set-EnvLine .env 'DRIVE_FOLDER_ID' $env:DRIVE_FOLDER_ID
+          $ok = (Get-Content .env -Raw) -match '(?m)^\s*SHEET_ID\s*=\s*.+$'
+          if (-not $ok) { throw "SHEET_ID missing in .env — set repo Variable SHEET_ID" }
+
+      - name: Run Pipeline
+        shell: pwsh
+        env:
+          GITHUB_ACTIONS: "true"
+        run: |
+          $mode     = "${{ github.event.inputs.mode }}"
+          $qty      = "${{ github.event.inputs.quantity }}"
+          $upload   = "${{ github.event.inputs.upload_drive }}"
+          $loop     = "${{ github.event.inputs.loop }}"
+          if (-not $mode)   { $mode   = "1" }
+          if (-not $qty)    { $qty    = "1" }
+          if (-not $upload) { $upload = "true" }
+
+          $a = "--mode $mode --max $qty --headless"
+          if ($upload -eq "true") { $a += " --upload" }
+          if ($loop   -eq "true") { $a += " --loop"   }
+
+          "CMD: python main.py $a" | Out-File pipeline.log -Encoding utf8
+          & python main.py $a 2>&1 | Tee-Object -FilePath pipeline.log -Append
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magiclight-output
+          path: |
+            output/**
+            *.log

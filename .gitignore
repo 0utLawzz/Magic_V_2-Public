@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+env/
+.env
+
+# Sensitive files — NEVER commit these
+accounts.txt
+credentials.json
+oauth_credentials.json
+token.json
+
+# Output
+output/
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Logs & state
+*.log
+.menu_state.json
+output/screenshots/
+
+# OS
+.DS_Store
+Thumbs.db
