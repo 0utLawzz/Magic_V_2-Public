@@ -1,400 +1,277 @@
 """
-MagicLight Auto v3.0
+MagicLight Auto v2.0
 =====================
-Central entry point with clean 3-mode menu.
+4-Tab Pipeline: Stories → Videos → Process → YouTube
 
-Modes
------
-  1  Video Making   — MagicLight.ai generation (sheet → generate → download)
-  2  Video Process  — FFmpeg post-processing   (pick video → process → Drive/local)
-  3  YouTube        — (coming soon)
+Menu
+----
+  1  Video Making   — Tab 1: MagicLight.ai generation
+  2  Video Process  — Tab 2: FFmpeg post-processing
+  3  YouTube        — Tab 3→4: Upload to YouTube
+  4  Full Pipeline  — Tabs 1→2→3 in sequence
 
-Extra
+Setup
 -----
-  S  Setup / Sheet schema migration
-  C  Check credits for all accounts
+  S  Setup Sheet    — Create all 4 tabs with correct headers
+  C  Check Credits  — Login all accounts, log credit balances
+  H  Health Check   — Verify packages, FFmpeg, assets, secrets
 
-Usage
------
-  python main.py                        # Interactive menu
-  python main.py --mode 1 --max 3       # Generate 3 stories
-  python main.py --mode 2               # Process all local videos
-  python main.py --mode 2 --upload      # Process + upload to Drive
-  python main.py --mode combined --max 1  # Generate + process inline
-  python main.py --credits              # Credit check
-  python main.py --migrate-schema       # Write sheet headers
-  python main.py --loop --mode 1        # Infinite loop mode
+CLI
+---
+  python main.py --mode 1 --max 3
+  python main.py --mode 2 --upload
+  python main.py --mode full --max 1 --loop
+  python main.py --setup
+  python main.py --credits
+  python main.py --health
 """
 
-__version__ = "3.0.0"
+__version__ = "2.0.0"
 
-import os
-import sys
-import argparse
-import warnings
+import os, sys, argparse, warnings, json
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
 os.environ.setdefault("PYTHONWARNINGS", "ignore")
-
 if sys.platform == "win32":
     os.environ["PYTHONIOENCODING"] = "utf-8"
 
 from rich.panel import Panel
 from rich.table import Table
-from rich.rule import Rule
 
 from modules.console_utils import console, ok, warn, err, info, rule, header_panel
 from modules.config import OUT_BASE, DRIVE_FOLDER_ID
-from modules.sheet import read_all, ensure_schema
 
+# ── Menu state ─────────────────────────────────────────────────────────────────
+_STATE = ".menu_state.json"
 
-# ── Menu state persistence ────────────────────────────────────────────────────
-import json
-
-_STATE_FILE = ".menu_state.json"
-
-def _load_state() -> dict:
+def _load() -> dict:
     try:
-        if os.path.exists(_STATE_FILE):
-            with open(_STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {"last_amount": 1, "last_drive": True, "last_loop": False}
+        if Path(_STATE).exists():
+            return json.loads(Path(_STATE).read_text())
+    except Exception: pass
+    return {"qty": 1, "upload": True, "loop": False, "profile": "1080p"}
 
+def _save(d: dict):
+    try: Path(_STATE).write_text(json.dumps(d))
+    except Exception: pass
 
-def _save_state(state: dict):
+# ── Sheet summary ──────────────────────────────────────────────────────────────
+def _sheet_summary():
     try:
-        with open(_STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f)
-    except Exception:
-        pass
+        from modules.sheet import read_tab, refresh_dashboard
+        from modules.config import TAB_STORIES, TAB_VIDEOS, TAB_PROCESS, TAB_YOUTUBE
 
+        s = read_tab(TAB_STORIES)
+        v = read_tab(TAB_VIDEOS)
+        p = read_tab(TAB_PROCESS)
+        y = read_tab(TAB_YOUTUBE)
 
-# ── Sheet summary table ───────────────────────────────────────────────────────
-def _show_sheet_summary():
-    try:
-        records = read_all()
+        def cnt(rows, val):
+            return sum(1 for r in rows if str(r.get("Status","")).strip().lower() == val.lower())
+
+        g = Table.grid(padding=(0, 4))
+        g.add_column(); g.add_column(); g.add_column(); g.add_column(); g.add_column()
+        g.add_row(
+            f"[bold]Stories[/bold] [yellow]{cnt(s,'Pending')}[/yellow] pending  [green]{cnt(s,'Generated')}[/green] done",
+            f"[bold]Videos[/bold] [yellow]{cnt(v,'Pending')}[/yellow] pending  [green]{cnt(v,'Done')}[/green] done",
+            f"[bold]Process[/bold] [yellow]{cnt(p,'Pending')+cnt(p,'Ready')}[/yellow] ready",
+            f"[bold]YouTube[/bold] [green]{cnt(y,'Uploaded')}[/green] uploaded",
+            f"[dim]Total: {len(s)} stories[/dim]",
+        )
+        console.print(g)
+        console.print()
+
+        # Pending stories preview
+        pending = [(i+2, r) for i, r in enumerate(s)
+                   if str(r.get("Status","")).strip().lower() == "pending"]
+        if pending:
+            t = Table(show_header=True, header_style="bold cyan",
+                      border_style="dim", show_lines=False, expand=False,
+                      title=f"[bold]Pending Stories ({len(pending)})[/bold]")
+            t.add_column("#",     width=4,  justify="right", style="dim")
+            t.add_column("Row",   width=5,  justify="center", style="cyan")
+            t.add_column("Theme", width=14, style="yellow")
+            t.add_column("Title", width=45)
+            for idx, (rn, r) in enumerate(pending[:12], 1):
+                t.add_row(str(idx), f"R{rn}",
+                          str(r.get("Theme",""))[:12] or "—",
+                          str(r.get("Title",""))[:43] or "(no title)")
+            if len(pending) > 12:
+                t.add_row("..","","",f"[dim]+{len(pending)-12} more[/dim]")
+            console.print(t)
     except Exception as e:
-        warn(f"Could not read sheet: {e}")
-        return
+        warn(f"Sheet summary: {e}")
 
-    def _status(r): return str(r.get("Status", "")).strip().lower()
+# ── Input helpers ──────────────────────────────────────────────────────────────
+def _int(prompt, default):
+    a = console.input(f"  [bold cyan]{prompt}[/bold cyan] [dim](default {default})[/dim]: ").strip()
+    return int(a) if a.isdigit() else default
 
-    pending   = [(i + 2, r) for i, r in enumerate(records) if _status(r) == "pending"]
-    done      = sum(1 for r in records if _status(r) == "done")
-    generated = sum(1 for r in records if _status(r) == "generated")
-    errors    = sum(1 for r in records if _status(r) in ("error", "no_video"))
-    total     = len(records)
+def _bool(prompt, default):
+    d = "Y" if default else "N"
+    a = console.input(f"  [bold cyan]{prompt}[/bold cyan] [dim](Y/N, default {d})[/dim]: ").strip().upper()
+    return (a == "Y") if a in ("Y","N") else default
 
-    # Stats bar
-    sg = Table.grid(padding=(0, 3))
-    sg.add_column(); sg.add_column(); sg.add_column(); sg.add_column(); sg.add_column()
-    sg.add_row(
-        f"[bold]Total[/bold]  [cyan]{total}[/cyan]",
-        f"[bold]Pending[/bold]  [yellow]{len(pending)}[/yellow]",
-        f"[bold]Generated[/bold]  [blue]{generated}[/blue]",
-        f"[bold]Done[/bold]  [green]{done}[/green]",
-        f"[bold]Errors[/bold]  [red]{errors}[/red]",
-    )
-    console.print(sg)
+# ── Mode runners ───────────────────────────────────────────────────────────────
+def mode1(args=None, headless=False):
+    from modules.pipeline import run_generation
+    s = _load()
+    console.print(); rule("Mode 1 — Video Making", style="cyan"); console.print()
+    _sheet_summary(); console.print()
+
+    qty    = getattr(args, "max",    0) or _int("How many stories? (0=all)", s["qty"])
+    upload = getattr(args, "upload", None)
+    if upload is None: upload = _bool("Upload raw video to Drive?", s["upload"])
+    loop   = getattr(args, "loop",   False) or _bool("Run on loop?", s["loop"])
+    _save({**s, "qty": qty, "upload": upload, "loop": loop})
     console.print()
+    run_generation(limit=qty, headless=headless, upload_drive=upload,
+                   auto_trigger_process=True, loop=loop)
 
-    if not pending:
-        console.print("  [dim]No pending stories.[/dim]")
-        return
+def mode2(args=None):
+    from modules.pipeline import run_processing
+    from modules.video_process import PROFILES
+    s = _load()
+    console.print(); rule("Mode 2 — Video Process", style="cyan"); console.print()
 
-    t = Table(show_header=True, header_style="bold cyan",
-              border_style="dim", show_lines=False,
-              title=f"[bold]Pending Stories ({len(pending)})[/bold]",
-              title_style="cyan", min_width=70)
-    t.add_column("#",     style="dim",    width=4,  justify="right")
-    t.add_column("Row",   style="cyan",   width=5,  justify="center")
-    t.add_column("Theme", style="yellow", width=16)
-    t.add_column("Title", style="white",  width=42)
-
-    for idx, (row_num, row) in enumerate(pending[:15], 1):
-        title = str(row.get("Title", "")).strip()[:40] or "(no title)"
-        theme = str(row.get("Theme", "")).strip()[:14] or "—"
-        t.add_row(str(idx), f"R{row_num}", theme, title)
-
-    if len(pending) > 15:
-        t.add_row("...", "", "", f"[dim]and {len(pending)-15} more[/dim]")
-
-    console.print(t)
-
-
-# ── Input helpers ─────────────────────────────────────────────────────────────
-def _ask_int(prompt: str, default: int) -> int:
-    ans = console.input(f"  [bold cyan]{prompt}[/bold cyan] [dim](default {default})[/dim] : ").strip()
-    return int(ans) if ans.isdigit() else default
-
-
-def _ask_bool(prompt: str, default: bool) -> bool:
-    dstr = "Y" if default else "N"
-    ans  = console.input(f"  [bold cyan]{prompt}[/bold cyan] [dim](Y/N, default {dstr})[/dim] : ").strip().upper()
-    return (ans == "Y") if ans in ("Y", "N") else default
-
-
-# ── Mode 1: Video Making ──────────────────────────────────────────────────────
-def _run_mode1(args=None, headless: bool = False):
-    from modules.pipeline import run_pipeline
-
-    state = _load_state()
-    console.print()
-    console.rule("[bold cyan]Mode 1 — Video Making[/bold cyan]", style="cyan")
-    console.print()
-    _show_sheet_summary()
-    console.print()
-
-    if args and getattr(args, "max", 0):
-        amount = args.max
-    else:
-        amount = _ask_int("How many stories? (0 = all pending)", state.get("last_amount", 1))
-
-    if args and getattr(args, "upload", False):
-        upload = True
-    else:
-        upload = _ask_bool("Upload to Google Drive?", state.get("last_drive", True))
-
-    loop = False
-    if not (args and getattr(args, "loop", False)):
-        loop = _ask_bool("Run on loop?", state.get("last_loop", False))
-    else:
-        loop = True
-
-    combined = args and getattr(args, "combined", False)
-    if not combined:
-        combined = _ask_bool("Also process (logo+trim) after generation?", False)
-
-    _save_state({"last_amount": amount, "last_drive": upload, "last_loop": loop})
-
-    if loop and not DRIVE_FOLDER_ID:
-        err("DRIVE_FOLDER_ID required for loop mode. Set it in .env")
-        return
+    qty    = getattr(args, "max", 0) or _int("How many? (0=all pending in Tab2)", 0)
+    upload = getattr(args, "upload", None)
+    if upload is None: upload = _bool("Upload processed video to Drive?", s["upload"])
 
     console.print()
-    run_pipeline(
-        limit=amount,
-        headless=headless,
-        upload_drive=upload,
-        inline_process=combined,
-        loop=loop
-    )
+    for i, (k, v) in enumerate(PROFILES.items(), 1):
+        console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
+    pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1/2/3, default 2)[/dim]: ").strip()
+    profile = list(PROFILES.keys())[int(pi)-1] if pi.isdigit() and 1<=int(pi)<=3 else "1080p"
 
-
-# ── Mode 2: Video Process ─────────────────────────────────────────────────────
-def _run_mode2(args=None):
-    from modules.video_process import scan_videos, process_all, PROFILES
-    from pathlib import Path
-
+    _save({**s, "upload": upload, "profile": profile})
     console.print()
-    console.rule("[bold cyan]Mode 2 — Video Process[/bold cyan]", style="cyan")
+    run_processing(limit=qty, upload=upload, profile=profile, auto_trigger_youtube=True)
+
+def mode3(args=None):
+    from modules.pipeline import run_youtube_upload
+    console.print(); rule("Mode 3 — YouTube Upload", style="cyan"); console.print()
+    qty = getattr(args, "max", 0) or _int("How many? (0=all ready)", 0)
     console.print()
+    run_youtube_upload(limit=qty)
 
-    base   = Path(OUT_BASE)
-    videos = scan_videos(base)
-
-    if not videos:
-        warn(f"No unprocessed videos found in '{OUT_BASE}/'")
-        return
-
-    # Show list
-    t = Table(show_header=True, header_style="bold cyan", border_style="dim",
-              title=f"[bold]Unprocessed Videos ({len(videos)})[/bold]")
-    t.add_column("#", width=4, justify="right", style="dim")
-    t.add_column("File", style="white")
-    t.add_column("MB", width=8, justify="right", style="cyan")
-    for i, v in enumerate(videos, 1):
-        mb = v.stat().st_size / 1_048_576
-        t.add_row(str(i), f"{v.parent.name}/{v.name}", f"{mb:.1f}")
-    console.print(t)
+def mode_full(args=None, headless=False):
+    """Run all 3 pipelines in sequence."""
     console.print()
-
-    # Options
-    if args and getattr(args, "max", 0):
-        limit = args.max
-    else:
-        limit = _ask_int("How many to process? (0 = all)", 0)
-    if limit > 0:
-        videos = videos[:limit]
-
-    if args and getattr(args, "upload", False):
-        upload = True
-    else:
-        upload = _ask_bool("Upload processed video to Google Drive?", True)
-
-    # Profile
-    profile_keys = list(PROFILES.keys())
+    rule("Full Pipeline: Tab1 → Tab2 → Tab3", style="cyan")
     console.print()
-    for i, k in enumerate(profile_keys, 1):
-        console.print(f"  [cyan]{i}[/cyan]  {PROFILES[k]['label']}")
-    prof_input = console.input("  [bold cyan]Encode profile[/bold cyan] [dim](1/2/3, default 2)[/dim] : ").strip()
-    profile = profile_keys[int(prof_input) - 1] if prof_input.isdigit() and 1 <= int(prof_input) <= 3 else "1080p"
-
-    dry = _ask_bool("Dry run only? (preview, no encode)", False)
-
+    s   = _load()
+    qty = getattr(args, "max", 0) or _int("Max stories per pipeline? (0=all)", 1)
+    _save({**s, "qty": qty})
     console.print()
-    process_all(videos=videos, dry_run=dry, upload=upload, profile=profile)
+    info("[Full] Step 1/3 — Generation..."); mode1(args, headless=headless)
+    info("[Full] Step 2/3 — Processing..."); mode2(args)
+    info("[Full] Step 3/3 — YouTube...");    mode3(args)
+    ok("[Full] All 3 pipelines done.")
 
+def run_setup():
+    console.print(); rule("Setup — Sheet Tabs", style="cyan"); console.print()
+    from modules.sheet import ensure_all_tabs
+    ensure_all_tabs()
+    console.print()
+    console.print("[dim]Open your Google Sheet — you should see 6 tabs:[/dim]")
+    console.print("[dim]  1_Stories / 2_Videos / 3_Process / 4_YouTube / Dashboard / Credits[/dim]")
+    console.print("[dim]Set any row in 1_Stories Status='Pending' to queue it.[/dim]")
 
-# ── Mode 3: YouTube ───────────────────────────────────────────────────────────
-def _run_mode3():
-    console.print()
-    console.rule("[bold cyan]Mode 3 — YouTube[/bold cyan]", style="cyan")
-    console.print()
-    warn("YouTube mode is coming soon. Not yet implemented.")
-    console.print()
-
-
-# ── Setup / Schema ────────────────────────────────────────────────────────────
-def _run_setup():
-    console.print()
-    console.rule("[bold cyan]Setup — Sheet Schema Migration[/bold cyan]", style="cyan")
-    console.print()
-    ensure_schema()
-    console.print()
-    console.print("[dim]Now open your Google Sheet and verify columns A–W are correct.[/dim]")
-    console.print("[dim]Set any row Status = 'Pending' to queue it for generation.[/dim]")
-
-
-# ── Credits check ─────────────────────────────────────────────────────────────
-def _run_credits(headless: bool = False):
+def run_credits(headless=False):
     from modules.credits import check_all_accounts
     check_all_accounts(headless=headless)
 
-
-# ── Health check ─────────────────────────────────────────────────────────────
-def _run_health():
+def run_health():
     import subprocess
-    console.print()
-    console.rule("[bold cyan]System Health Check[/bold cyan]", style="cyan")
+    console.print(); rule("Health Check", style="cyan")
     issues = 0
     py = sys.version_info
-    if py.major >= 3 and py.minor >= 8:
-        ok(f"Python {py.major}.{py.minor}.{py.micro}")
-    else:
-        err(f"Python too old: {py.major}.{py.minor}"); issues += 1
+    ok(f"Python {py.major}.{py.minor}.{py.micro}") if py >= (3,8) else (err("Python too old") or issues+1)
 
-    pkgs = {"playwright": "playwright", "gspread": "gspread",
-            "google-auth-oauthlib": "google_auth_oauthlib",
-            "google-api-python-client": "googleapiclient",
-            "python-dotenv": "dotenv"}
-    for pkg, imp in pkgs.items():
-        try:
-            __import__(imp); ok(f"Package: {pkg}")
-        except ImportError:
-            err(f"Missing: {pkg}"); issues += 1
+    for pkg, imp in [("playwright","playwright"), ("gspread","gspread"),
+                     ("google-auth-oauthlib","google_auth_oauthlib"),
+                     ("google-api-python-client","googleapiclient"),
+                     ("python-dotenv","dotenv"), ("rich","rich")]:
+        try: __import__(imp); ok(f"Package: {pkg}")
+        except ImportError: err(f"Missing: {pkg}"); issues += 1
 
-    try:
-        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
-        ok("FFmpeg installed")
-    except Exception:
-        err("FFmpeg NOT found in PATH"); issues += 1
+    try: subprocess.run(["ffmpeg","-version"], capture_output=True, check=True); ok("FFmpeg installed")
+    except: err("FFmpeg NOT found"); issues += 1
 
     from modules.config import LOGO_PATH, ENDSCREEN_VIDEO, SHEET_ID, DRIVE_FOLDER_ID
     ok(f"Logo: {LOGO_PATH}") if LOGO_PATH.exists() else warn(f"Logo missing: {LOGO_PATH}")
-    ok(f"Endscreen: {ENDSCREEN_VIDEO}") if ENDSCREEN_VIDEO.exists() else warn(f"Endscreen missing: {ENDSCREEN_VIDEO}")
-    ok("SHEET_ID set") if SHEET_ID else warn("SHEET_ID not set")
+    ok("SHEET_ID set") if SHEET_ID else err("SHEET_ID missing — set GitHub Secret")
     ok("DRIVE_FOLDER_ID set") if DRIVE_FOLDER_ID else warn("DRIVE_FOLDER_ID not set")
 
     console.print()
-    ok("All core checks passed!") if issues == 0 else err(f"{issues} issue(s) found")
+    ok("All OK!") if issues == 0 else err(f"{issues} issue(s) — fix before running")
 
+# ── Interactive menu ───────────────────────────────────────────────────────────
+def menu():
+    header_panel(f"MagicLight Auto  v{__version__}", "4-Tab Kids Story Pipeline")
 
-# ── Interactive menu ──────────────────────────────────────────────────────────
-def interactive_menu():
-    header_panel(
-        f"MagicLight Auto  v{__version__}",
-        "Kids Story Video Pipeline"
-    )
-    _show_sheet_summary()
+    # Try to show sheet summary (may fail before setup)
+    try: _sheet_summary()
+    except Exception: pass
+
     console.print()
+    mt = Table(show_header=False, box=None, padding=(0,2))
+    mt.add_column("k", style="bold cyan", width=4)
+    mt.add_column("l", style="bold white", width=22)
+    mt.add_column("d", style="dim")
+    mt.add_row("1",  "Video Making",    "Tab 1 — Generate from MagicLight.ai")
+    mt.add_row("2",  "Video Process",   "Tab 2 — FFmpeg: logo + trim + endscreen")
+    mt.add_row("3",  "YouTube Upload",  "Tab 3→4 — Post processed video to YouTube")
+    mt.add_row("4",  "Full Pipeline",   "Run all 3 modes in sequence")
+    mt.add_row("─",  "──────────────",  "─────────────────────────────────────────")
+    mt.add_row("S",  "Setup Sheet",     "Create all tabs + headers (run once)")
+    mt.add_row("C",  "Check Credits",   "Login all accounts → log balances")
+    mt.add_row("H",  "Health Check",    "Verify packages, FFmpeg, secrets, assets")
+    console.print(mt); console.print()
 
-    mt = Table(show_header=False, box=None, padding=(0, 2))
-    mt.add_column("key",   style="bold cyan",  width=4)
-    mt.add_column("label", style="bold white", width=28)
-    mt.add_column("desc",  style="dim",        width=40)
-    mt.add_row("1", "Video Making",   "MagicLight.ai → generate → download")
-    mt.add_row("2", "Video Process",  "Pick video → FFmpeg → Drive/local")
-    mt.add_row("3", "YouTube",        "Post processed video to YouTube")
-    mt.add_row("─", "──────────────", "─────────────────────────────────────")
-    mt.add_row("S", "Setup Sheet",    "Write column headers (run once)")
-    mt.add_row("C", "Check Credits",  "Login + log credits for all accounts")
-    mt.add_row("H", "Health Check",   "Verify packages, FFmpeg, assets")
-    console.print(mt)
-    console.print()
+    ch = console.input("  [bold cyan]Select [1/2/3/4/S/C/H]: [/bold cyan]").strip().upper()
+    if   ch == "1": mode1()
+    elif ch == "2": mode2()
+    elif ch == "3": mode3()
+    elif ch == "4": mode_full()
+    elif ch == "S": run_setup()
+    elif ch == "C":
+        hl = _bool("Run headless?", True)
+        run_credits(headless=hl)
+    elif ch == "H": run_health()
+    else: warn("Unknown choice.")
 
-    choice = console.input("  [bold cyan]Select [1/2/3/S/C/H] : [/bold cyan]").strip().upper()
-
-    if choice == "1":
-        _run_mode1()
-    elif choice == "2":
-        _run_mode2()
-    elif choice == "3":
-        _run_mode3()
-    elif choice == "S":
-        _run_setup()
-    elif choice == "C":
-        hl = _ask_bool("Run headless?", True)
-        _run_credits(headless=hl)
-    elif choice == "H":
-        _run_health()
-    else:
-        warn("Unknown choice — exiting.")
-
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
-def parse_args():
+# ── CLI ────────────────────────────────────────────────────────────────────────
+def _args():
     p = argparse.ArgumentParser(description=f"MagicLight Auto v{__version__}")
-    p.add_argument("--mode",     choices=["1", "2", "3", "combined"], help="Run mode directly")
-    p.add_argument("--max",      type=int, default=0, help="Max rows/videos to process (0=all)")
-    p.add_argument("--upload",   action="store_true", help="Upload to Google Drive")
-    p.add_argument("--headless", action="store_true", help="Run browser headless")
-    p.add_argument("--loop",     action="store_true", help="Infinite loop mode")
-    p.add_argument("--combined", action="store_true", help="Generate + process inline")
-    p.add_argument("--dry-run",  action="store_true", help="FFmpeg dry run (no encode)")
-    p.add_argument("--credits",  action="store_true", help="Check all account credits")
-    p.add_argument("--migrate-schema", action="store_true", help="Write sheet headers")
-    p.add_argument("--health",   action="store_true", help="Run health check")
+    p.add_argument("--mode",     choices=["1","2","3","full"])
+    p.add_argument("--max",      type=int, default=0)
+    p.add_argument("--upload",   action="store_true")
+    p.add_argument("--headless", action="store_true")
+    p.add_argument("--loop",     action="store_true")
+    p.add_argument("--setup",    action="store_true")
+    p.add_argument("--credits",  action="store_true")
+    p.add_argument("--health",   action="store_true")
     return p.parse_args()
 
-
 if __name__ == "__main__":
+    os.makedirs(os.path.join(OUT_BASE, "screenshots"), exist_ok=True)
     try:
-        args = parse_args()
-
-        # Ensure output directories exist
-        os.makedirs(os.path.join(OUT_BASE, "screenshots"), exist_ok=True)
-
-        if args.migrate_schema:
-            _run_setup()
-        elif args.health:
-            _run_health()
-        elif args.credits:
-            _run_credits(headless=args.headless)
-        elif args.mode == "1":
-            _run_mode1(args=args, headless=args.headless)
-        elif args.mode == "combined":
-            args.combined = True
-            _run_mode1(args=args, headless=args.headless)
-        elif args.mode == "2":
-            _run_mode2(args=args)
-        elif args.mode == "3":
-            _run_mode3()
-        else:
-            interactive_menu()
-
+        a = _args()
+        if   a.setup:          run_setup()
+        elif a.health:         run_health()
+        elif a.credits:        run_credits(headless=a.headless)
+        elif a.mode == "1":    mode1(a, headless=a.headless)
+        elif a.mode == "2":    mode2(a)
+        elif a.mode == "3":    mode3(a)
+        elif a.mode == "full": mode_full(a, headless=a.headless)
+        else:                  menu()
     except KeyboardInterrupt:
         console.print("\n[bold yellow][STOP] Exiting...[/bold yellow]")
         from modules.browser_utils import close_browser
-        close_browser()
-        import os as _os
-        _os._exit(0)
+        close_browser(); os._exit(0)
     except Exception as e:
         console.print(f"\n[bold red][FATAL] {e}[/bold red]")
-        import traceback
-        traceback.print_exc()
-        import os as _os
-        _os._exit(1)
+        import traceback; traceback.print_exc(); os._exit(1)

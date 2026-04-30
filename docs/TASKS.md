@@ -1,110 +1,113 @@
-# TASKS — MagicLight Auto v3.0
-# AI Context File — Read this before making any changes
-# Last updated: 2026-04-30
+# TASKS — MagicLight Auto v2.0
+# AI context file — read before making ANY changes
+# Updated: 2026-05-01
 
 ## Project Status
-Version: 3.0.0
-Structure: Modular (modules/ package)
-Local run: Working
-GitHub Actions: Pending test
+Version:    2.0.0
+Sheet:      4 tabs (1_Stories / 2_Videos / 3_Process / 4_YouTube)
+Row_ID:     Links all 4 tabs — set once in Tab 1, never changed
+Pipelines:  2 (GitHub Actions: pipeline1-generation + pipeline2-process-youtube)
+Local run:  python main.py (interactive menu)
+GitHub:     All config via Secrets + Variables — NO .env on server
+
+## File Map
+```
+main.py              → menu + CLI
+modules/config.py    → ALL settings (env vars) — imported everywhere
+modules/sheet.py     → ALL sheet ops (4 tabs + dashboard + credits)
+modules/pipeline.py  → trigger chain Tab1→Tab2→Tab3→Tab4
+modules/video_gen.py → MagicLight steps 1-4 (DO NOT touch logic)
+modules/video_process.py → FFmpeg pipeline
+modules/browser_utils.py → Playwright, popup dismissal
+modules/drive.py     → Drive upload
+modules/credits.py   → credit checker
+modules/youtube.py   → YouTube upload (TODO)
+```
+
+## Status Flow
+```
+Tab 1:  Pending → Processing → Generated → Error / No_Video / Low_Credit
+Tab 2:  Pending → Processing → Done → Error
+Tab 3:  Pending → Ready → Uploading → Uploaded → Error
+Tab 4:  Uploaded / Failed
+```
+
+## Trigger Chain
+```
+Tab1 Generated  → push_to_videos_tab()   → Tab2 row (Pending)
+Tab2 Done       → push_to_process_tab()  → Tab3 row (Pending)
+Tab3 Uploaded   → push_to_youtube_tab()  → Tab4 row (Uploaded)
+```
 
 ---
 
 ## COMPLETED ✅
 
-### v3.0 Restructure
-- [x] Broke monolithic main.py into modules/
-- [x] modules/config.py — centralized .env loading
-- [x] modules/sheet.py — all sheet ops, Row_ID lock
-- [x] modules/drive.py — Drive upload helpers
-- [x] modules/browser_utils.py — Playwright, popups, sleep
-- [x] modules/video_gen.py — Mode 1: login + steps 1-4
-- [x] modules/video_process.py — Mode 2: FFmpeg pipeline
-- [x] modules/pipeline.py — core runner + account rotation
-- [x] modules/credits.py — credit checker
-- [x] main.py — clean 3-mode menu + CLI
-- [x] Sheet schema expanded to 23 cols (Row_ID + YouTube cols)
-- [x] docs/SHEET_STRUCTURE.md updated
-- [x] docs/CHANGELOG.md created
-- [x] README.md updated
-- [x] .env.example updated
-- [x] .gitignore created
-- [x] requirements.txt updated
+- [x] 4-tab sheet architecture
+- [x] Row_ID linking all tabs
+- [x] Trigger chain: Tab1→2→3 (youtube tab4 pending)
+- [x] Dual GitHub pipelines
+- [x] Pipeline 2 auto-triggers after Pipeline 1 (workflow_run)
+- [x] All config via GitHub Secrets + Variables
+- [x] Dashboard tab (refresh after every run)
+- [x] Credits tab (per-account logging)
+- [x] ensure_all_tabs() — creates all 6 tabs in one call
+- [x] main.py: 4-mode menu (1/2/3/Full)
+- [x] Mode 4: full pipeline in sequence
+- [x] README with Secrets/Variables table
+- [x] CHANGELOG updated
 
 ---
 
 ## IN PROGRESS 🔄
 
-### Mode 3 — YouTube Upload
+### modules/youtube.py — Mode 3
 - [ ] Create modules/youtube.py
-- [ ] OAuth flow for YouTube Data API v3
-- [ ] Upload processed video (from Process_Drive or local)
-- [ ] Write back YT_Video_ID, YT_URL, YT_Published to sheet
-- [ ] Status: Pending → Uploaded / Failed
-- [ ] Trigger condition: Status == "Done" AND Process_Drive is set
-- NOTE: YouTube API requires OAuth (not service account). Use separate token file.
-
-### Sheet Improvements
-- [ ] Add "Generated" status filter for Mode 2 (pick only Generated rows)
-- [ ] Add "Done" status filter for Mode 3 (pick only Done rows)
-- [ ] Row_ID auto-increment on first write (currently timestamp-based)
+- [ ] YouTube Data API v3 OAuth setup
+  - Client secrets → yt_client_secrets.json
+  - Token → yt_token.json (GitHub Secret: YT_TOKEN)
+- [ ] upload_video(row: dict) → {"video_id": str, "url": str}
+  - Read: YT_Title, YT_Description, YT_Tags, YT_Privacy, YT_Category
+  - Read: Drive_Processed or local file path
+  - Set: Scheduled_Time if present
+- [ ] Write back: Tab 4 row via push_to_youtube_tab()
+- [ ] Update Tab 3 Status = "Uploaded"
+- NOTE: Separate OAuth from GCP service account
 
 ---
 
 ## PENDING / BACKLOG 📋
 
-### GitHub Actions
-- [ ] Test .github/workflows/pipeline.yml with new structure
-- [ ] Verify secrets (ENV_FILE, ACCOUNTS_TXT, GCP_CREDENTIALS) work
-- [ ] Add workflow for Mode 2 (process only)
+### Sheet
+- [ ] Tab 3: Allow manual edit of YT_Title/Description before upload
+- [ ] Tab 1: Add "Retry" status to re-queue failed rows
+- [ ] Row_ID: Switch from timestamp to auto-increment (optional)
 
-### Mode 2 Improvements
-- [ ] After processing, auto-update sheet Status to "Done"
-- [ ] Allow picking specific row numbers to process (not just all)
-- [ ] Add thumbnail extraction from processed video
+### Mode 2 Improvements  
+- [ ] Read profile from Tab 2 `Profile` column (currently menu-only)
+- [ ] Thumbnail extraction from processed video if original missing
 
 ### Mode 1 Improvements
-- [ ] Multiple style options (not hardcoded Pixar/Sophia/Silica)
-- [ ] Retry count per row (currently 1 retry only)
-- [ ] Parallel processing (multiple browser contexts)
+- [ ] Style selector (Pixar / Disney / etc.) from sheet column
+- [ ] Multi-account parallel generation (multiple contexts)
 
 ### General
-- [ ] Add --profile CLI flag for FFmpeg quality profile
-- [ ] Unit tests for sheet.py, config.py
-- [ ] Log file output (save console output to logs/)
-
----
-
-## FILE MAP (for AI reference)
-
-```
-main.py
-  └── interactive_menu() / CLI
-      ├── Mode 1 → modules/pipeline.py → run_pipeline()
-      │              └── modules/video_gen.py (login, step1-4)
-      ├── Mode 2 → modules/video_process.py → process_all()
-      ├── Mode 3 → modules/youtube.py (TODO)
-      ├── Setup  → modules/sheet.py → ensure_schema()
-      └── Credits→ modules/credits.py → check_all_accounts()
-
-modules/config.py       ← imported by ALL modules (no circular deps)
-modules/console_utils.py← imported by ALL modules
-modules/sheet.py        ← imported by pipeline, video_gen, video_process, drive
-modules/drive.py        ← imported by pipeline, video_gen
-modules/browser_utils.py← imported by video_gen, pipeline, credits
-```
+- [ ] Log file output (save console to logs/YYYY-MM-DD.log)
+- [ ] Retry count column in Tab 1
+- [ ] Unit tests for sheet.py
 
 ---
 
 ## RULES FOR AI ASSISTANTS
 
-1. NEVER change logic in video_gen.py steps (step1-4) — they were hard to build
-2. Always import from modules.config — never hardcode env vars
-3. Sheet columns are in SHEET_SCHEMA in config.py — add new cols there first
-4. Row_ID is set once via lock_row() — never overwrite it
-5. Status flow: Pending → Processing → Generated → Done (never skip)
-6. Drive upload is optional — always check UPLOAD_TO_DRIVE / DRIVE_FOLDER_ID before uploading
-7. All console output via modules.console_utils (ok/warn/err/info) — no raw print()
-8. When adding a new module: add import to modules/__init__.py too
-9. Test locally before pushing to GitHub Actions
-10. Keep docs/TASKS.md updated after every session
+1. NEVER modify step1/step2/step3/step4 logic in video_gen.py — very fragile
+2. All settings must come from modules/config.py — never os.getenv() elsewhere
+3. Sheet column indices are in SCHEMA_* dicts in config.py — add cols there first
+4. Row_ID is set via lock_row() ONCE — never overwrite
+5. Status flow must be respected: Pending → Processing → Done/Error
+6. Drive uploads: always check UPLOAD_TO_DRIVE / DRIVE_FOLDER_ID first
+7. Console output: always use modules.console_utils (ok/warn/err/info)
+8. New modules: add to modules/__init__.py import too
+9. GitHub Actions: config = Secrets + Variables ONLY. Never .env file.
+10. Test locally before pushing to GitHub Actions
+11. After every session: update docs/TASKS.md

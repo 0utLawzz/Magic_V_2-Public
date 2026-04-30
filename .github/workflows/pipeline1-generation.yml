@@ -1,0 +1,98 @@
+name: "Pipeline 1 — Video Generation"
+
+on:
+  workflow_dispatch:
+    inputs:
+      quantity:
+        description: "Stories to generate (0 = all pending)"
+        required: true
+        default: "1"
+        type: string
+      upload_drive:
+        description: "Upload raw video to Drive?"
+        required: true
+        default: true
+        type: boolean
+      loop:
+        description: "Loop until all pending done?"
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 */4 * * *"   # Every 4 hours
+
+concurrency:
+  group: ml-generation
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright
+        run: playwright install --with-deps chromium
+
+      - name: Write secrets to files
+        shell: pwsh
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          ACCOUNTS_TXT:    ${{ secrets.ACCOUNTS_TXT }}
+        run: |
+          if ($env:GCP_CREDENTIALS) {
+            $env:GCP_CREDENTIALS | Out-File -FilePath credentials.json -Encoding utf8 -NoNewline
+          }
+          if ($env:ACCOUNTS_TXT) {
+            $env:ACCOUNTS_TXT | Out-File -FilePath accounts.txt -Encoding utf8 -NoNewline
+          }
+
+      - name: Run Generation Pipeline
+        shell: pwsh
+        env:
+          # ── All config via GitHub Secrets / Variables — no .env needed ──
+          SHEET_ID:        ${{ secrets.SHEET_ID }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          ML_EMAIL:        ${{ secrets.ML_EMAIL }}
+          ML_PASSWORD:     ${{ secrets.ML_PASSWORD }}
+          STEP1_WAIT:      ${{ vars.STEP1_WAIT }}
+          STEP2_WAIT:      ${{ vars.STEP2_WAIT }}
+          STEP3_WAIT:      ${{ vars.STEP3_WAIT }}
+          STEP4_RENDER_TIMEOUT: ${{ vars.RENDER_TIMEOUT }}
+          TRIM_SECONDS:    ${{ vars.TRIM_SECONDS }}
+          LOGO_X:          ${{ vars.LOGO_X }}
+          LOGO_Y:          ${{ vars.LOGO_Y }}
+          LOGO_WIDTH:      ${{ vars.LOGO_WIDTH }}
+          UPLOAD_TO_DRIVE: ${{ vars.UPLOAD_TO_DRIVE }}
+          GITHUB_ACTIONS:  "true"
+        run: |
+          $qty    = "${{ github.event.inputs.quantity }}"; if (!$qty) { $qty = "1" }
+          $upload = "${{ github.event.inputs.upload_drive }}"; if (!$upload) { $upload = "true" }
+          $loop   = "${{ github.event.inputs.loop }}"; if (!$loop) { $loop = "false" }
+
+          $cmd = "--mode 1 --max $qty --headless"
+          if ($upload -eq "true") { $cmd += " --upload" }
+          if ($loop   -eq "true") { $cmd += " --loop"   }
+
+          "CMD: python main.py $cmd" | Out-File pipeline1.log -Encoding utf8
+          & python main.py $cmd 2>&1 | Tee-Object -FilePath pipeline1.log -Append
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generation-output
+          path: |
+            output/**
+            pipeline1.log

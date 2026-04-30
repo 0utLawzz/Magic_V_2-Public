@@ -1,0 +1,132 @@
+name: "Pipeline 2 — Process + YouTube"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to run"
+        required: true
+        default: "process"
+        type: choice
+        options:
+          - process       # FFmpeg only (Tab 2)
+          - youtube       # YouTube upload only (Tab 3→4)
+          - both          # Process then YouTube
+      quantity:
+        description: "Max items (0 = all pending)"
+        required: true
+        default: "0"
+        type: string
+      upload_drive:
+        description: "Upload processed video to Drive?"
+        required: true
+        default: true
+        type: boolean
+      profile:
+        description: "FFmpeg quality profile"
+        required: true
+        default: "1080p"
+        type: choice
+        options:
+          - 720p
+          - 1080p
+          - 1080p_hq
+  # Optional: auto-trigger after Pipeline 1 completes
+  workflow_run:
+    workflows: ["Pipeline 1 — Video Generation"]
+    types: [completed]
+
+concurrency:
+  group: ml-processing
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: windows-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          architecture: x64
+
+      - name: Write secrets to files
+        shell: pwsh
+        env:
+          GCP_CREDENTIALS:   ${{ secrets.GCP_CREDENTIALS }}
+          YOUTUBE_TOKEN:     ${{ secrets.YOUTUBE_TOKEN }}
+          YT_CLIENT_SECRETS: ${{ secrets.YT_CLIENT_SECRETS }}
+        run: |
+          if ($env:GCP_CREDENTIALS) {
+            $env:GCP_CREDENTIALS | Out-File -FilePath credentials.json -Encoding utf8 -NoNewline
+          }
+          if ($env:YOUTUBE_TOKEN) {
+            $env:YOUTUBE_TOKEN | Out-File -FilePath yt_token.json -Encoding utf8 -NoNewline
+          }
+          if ($env:YT_CLIENT_SECRETS) {
+            $env:YT_CLIENT_SECRETS | Out-File -FilePath yt_client_secrets.json -Encoding utf8 -NoNewline
+          }
+
+      - name: Download generated videos from Pipeline 1
+        uses: actions/download-artifact@v4
+        with:
+          name: generation-output
+          path: output/
+        continue-on-error: true   # OK if Pipeline 1 didn't run this time
+
+      - name: Run Process / YouTube
+        shell: pwsh
+        env:
+          SHEET_ID:        ${{ secrets.SHEET_ID }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          TRIM_SECONDS:    ${{ vars.TRIM_SECONDS }}
+          LOGO_X:          ${{ vars.LOGO_X }}
+          LOGO_Y:          ${{ vars.LOGO_Y }}
+          LOGO_WIDTH:      ${{ vars.LOGO_WIDTH }}
+          LOGO_OPACITY:    ${{ vars.LOGO_OPACITY }}
+          ENDSCREEN_ENABLED: ${{ vars.ENDSCREEN_ENABLED }}
+          UPLOAD_TO_DRIVE: ${{ vars.UPLOAD_TO_DRIVE }}
+          GITHUB_ACTIONS:  "true"
+        run: |
+          $runMode = "${{ github.event.inputs.mode }}"
+          if (!$runMode) { $runMode = "process" }
+          $qty     = "${{ github.event.inputs.quantity }}"; if (!$qty) { $qty = "0" }
+          $upload  = "${{ github.event.inputs.upload_drive }}"; if (!$upload) { $upload = "true" }
+          $profile = "${{ github.event.inputs.profile }}"; if (!$profile) { $profile = "1080p" }
+
+          "" | Out-File pipeline2.log -Encoding utf8
+
+          if ($runMode -eq "process" -or $runMode -eq "both") {
+            $cmd = "--mode 2 --max $qty"
+            if ($upload -eq "true") { $cmd += " --upload" }
+            "CMD: python main.py $cmd" | Tee-Object -FilePath pipeline2.log -Append
+            & python main.py $cmd 2>&1 | Tee-Object -FilePath pipeline2.log -Append
+          }
+
+          if ($runMode -eq "youtube" -or $runMode -eq "both") {
+            $cmd2 = "--mode 3 --max $qty"
+            "CMD: python main.py $cmd2" | Tee-Object -FilePath pipeline2.log -Append
+            & python main.py $cmd2 2>&1 | Tee-Object -FilePath pipeline2.log -Append
+          }
+
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-output
+          path: |
+            output/**
+            pipeline2.log
