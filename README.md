@@ -1,7 +1,7 @@
-# MagicLight Auto v3.0 🪄
+# MagicLight Auto v2.0 
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Version](https://img.shields.io/badge/version-v3.0.0-brightgreen)
+![Version](https://img.shields.io/badge/version-v2.0.0-brightgreen)
 
 Kids story video automation pipeline — MagicLight.ai → FFmpeg → Google Drive → YouTube
 
