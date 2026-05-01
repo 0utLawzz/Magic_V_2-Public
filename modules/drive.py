@@ -7,7 +7,7 @@ from pathlib import Path
 
 from modules.config import DRIVE_FOLDER_ID, UPLOAD_TO_DRIVE
 from modules.console_utils import ok, warn, info
-from modules.sheet import update_row, _get_credentials   # reuse auth
+from modules.sheet import update_row, _get_creds   # reuse auth
 
 
 def upload_file(file_path: str, folder_name: str = None) -> str:
@@ -25,7 +25,7 @@ def upload_file(file_path: str, folder_name: str = None) -> str:
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
-        creds   = _get_credentials()
+        creds   = _get_creds()
         service = build("drive", "v3", credentials=creds)
 
         # Find or create sub-folder
@@ -76,7 +76,7 @@ def upload_story(safe_name: str, video_path, thumb_path,
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
-        creds   = _get_credentials()
+        creds   = _get_creds()
         service = build("drive", "v3", credentials=creds)
 
         # Create story sub-folder

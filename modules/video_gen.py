@@ -13,7 +13,7 @@ from pathlib import Path
 from modules.config import (
     EMAIL, PASSWORD, STEP1_WAIT, STEP2_WAIT, STEP3_WAIT,
     RENDER_TIMEOUT, POLL_INTERVAL, RELOAD_INTERVAL,
-    OUT_BASE, MAGICLIGHT_OUTPUT, DRIVE_FOLDER_ID, UPLOAD_TO_DRIVE
+    OUT_BASE, DRIVE_FOLDER_ID, UPLOAD_TO_DRIVE
 )
 from modules.console_utils import ok, warn, err, info, dbg, console
 from modules.browser_utils import (

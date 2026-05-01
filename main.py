@@ -120,10 +120,10 @@ def mode1(args=None, headless=False):
     console.print(); rule("Mode 1 — Video Making", style="cyan"); console.print()
     _sheet_summary(); console.print()
 
-    qty    = getattr(args, "max",    0) or _int("How many stories? (0=all)", s["qty"])
+    qty    = getattr(args, "max",    0) or _int("How many stories? (0=all)", s.get("qty", 1))
     upload = getattr(args, "upload", None)
-    if upload is None: upload = _bool("Upload raw video to Drive?", s["upload"])
-    loop   = getattr(args, "loop",   False) or _bool("Run on loop?", s["loop"])
+    if upload is None: upload = _bool("Upload raw video to Drive?", s.get("upload", True))
+    loop   = getattr(args, "loop",   False) or _bool("Run on loop?", s.get("loop", False))
     _save({**s, "qty": qty, "upload": upload, "loop": loop})
     console.print()
     run_generation(limit=qty, headless=headless, upload_drive=upload,
@@ -137,7 +137,7 @@ def mode2(args=None):
 
     qty    = getattr(args, "max", 0) or _int("How many? (0=all pending in Tab2)", 0)
     upload = getattr(args, "upload", None)
-    if upload is None: upload = _bool("Upload processed video to Drive?", s["upload"])
+    if upload is None: upload = _bool("Upload processed video to Drive?", s.get("upload", True))
 
     console.print()
     for i, (k, v) in enumerate(PROFILES.items(), 1):
