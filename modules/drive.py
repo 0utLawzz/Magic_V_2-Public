@@ -97,7 +97,8 @@ def upload_story(safe_name: str, video_path, thumb_path,
 
         if sheet_row_num and result["video_link"]:
             try:
-                update_row(sheet_row_num, Drive_Link=result["video_link"])
+                from modules.sheet import SCHEMA_VIDEOS
+                update_row("2_Videos", sheet_row_num, SCHEMA_VIDEOS, Drive_Link=result["video_link"])
             except Exception as se:
                 warn(f"[sheet] Drive_Link write: {se}")
 
@@ -114,7 +115,8 @@ def upload_story(safe_name: str, video_path, thumb_path,
                 ok(f"[drive] Thumbnail → {result['thumb_link']}")
                 if sheet_row_num and result["thumb_link"]:
                     try:
-                        update_row(sheet_row_num, DriveImg_Link=result["thumb_link"])
+                        from modules.sheet import SCHEMA_VIDEOS
+                        update_row("2_Videos", sheet_row_num, SCHEMA_VIDEOS, DriveImg_Link=result["thumb_link"])
                     except Exception: pass
             except Exception as te:
                 warn(f"[drive] Thumbnail upload failed (non-fatal): {te}")

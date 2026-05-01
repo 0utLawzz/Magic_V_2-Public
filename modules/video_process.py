@@ -306,8 +306,9 @@ def process_all(videos: list[Path] = None, dry_run: bool = False,
                 processed_link = upload_file(str(dst), folder_name)
                 if row_num:
                     try:
+                        from modules.sheet import SCHEMA_VIDEOS
                         update_row(
-                            row_num,
+                            "2_Videos", row_num, SCHEMA_VIDEOS,
                             Status         = "Done",
                             Process_Drive  = processed_link,
                             Completed_Time = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

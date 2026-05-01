@@ -828,7 +828,7 @@ def retry_from_user_center(page, project_url: str, safe_name: str):
         return None
     ok(f"[retry] Project opened ({clicked})")
     sleep_log(5)
-    wait_site_loaded(page, None, 30)
+    wait_site_loaded(page, None, timeout=30)
     dismiss_all(page)
     _handle_generated_popup(page)
     sleep_log(2)
