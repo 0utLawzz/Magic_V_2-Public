@@ -53,7 +53,7 @@ def _oauth_creds():
             creds = None
     if not creds or not creds.valid:
         flow  = InstalledAppFlow.from_client_secrets_file("oauth_credentials.json", scopes)
-        creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
+        creds = flow.run_local_server(port=8080, access_type="offline", prompt="consent")
         with open(token_file, "w") as f:
             f.write(creds.to_json())
     return creds
