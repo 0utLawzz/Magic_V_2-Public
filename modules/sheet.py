@@ -33,14 +33,14 @@ _TAB_SCHEMAS = {
 # ── Auth ───────────────────────────────────────────────────────────────────────
 def _sa_creds():
     scopes = ["https://www.googleapis.com/auth/spreadsheets",
-              "https://www.googleapis.com/auth/drive.file"]
+              "https://www.googleapis.com/auth/drive"]
     if not os.path.exists(CREDS_JSON):
         raise FileNotFoundError(f"credentials.json not found: {CREDS_JSON}")
     return SACredentials.from_service_account_file(CREDS_JSON, scopes=scopes)
 
 def _oauth_creds():
     scopes = ["https://www.googleapis.com/auth/spreadsheets",
-              "https://www.googleapis.com/auth/drive.file"]
+              "https://www.googleapis.com/auth/drive"]
     token_file = "token.json"
     creds = None
     if os.path.exists(token_file):
