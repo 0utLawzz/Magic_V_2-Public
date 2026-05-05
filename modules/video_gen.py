@@ -1,5 +1,6 @@
+# === STABLE - DO NOT MODIFY ===
 """
-video_gen.py — Mode 1: MagicLight.ai video generation pipeline
+video_gen.py — MagicLight generation steps
 Login → Step1 (story) → Step2 (cast) → Step3 (storyboard) → Step4 (render+download)
 """
 
@@ -64,7 +65,6 @@ def _logout(page):
 
 
 def login(page, custom_email: str = None, custom_pw: str = None):
-    from modules.sheet import credits_log_login
     info("[Login] Starting fresh login...")
     try: page.context.clear_cookies()
     except Exception: pass
@@ -162,8 +162,6 @@ def login(page, custom_email: str = None, custom_pw: str = None):
     except Exception as e:
         warn(f"[credits] Could not load user center: {e}")
     total, _ = read_credits_from_page(page)
-    if total > 0:
-        credits_log_login(custom_email or EMAIL, total)
     try:
         page.goto("https://magiclight.ai/kids-story/", timeout=45000)
         wait_site_loaded(page, None, timeout=30)

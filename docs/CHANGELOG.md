@@ -59,6 +59,31 @@
 
 ---
 
+## v2.0.1 — 2026-05-06
+
+### Credits Sheet Restructure
+
+- **BREAKING**: Credits sheet structure changed to append-only log
+  - New columns: EMAIL, CREDITS, DATE/TIME (DD-MMM-YY hh:mm A), Col4 (empty), Col5 (empty), EMAIL/PASS
+  - Previous columns: Email, Total_Credits, Used_Credits, Remaining, Last_Checked, Log_Timestamp, Detail
+- **Append-only behavior** - Credit checks now add new rows instead of updating existing records
+- **Email/Password format** - Column F stores email:password format (e.g., user@example.com:password123)
+- **Added SCHEMA_CREDITS** to config.py for consistent column mapping
+- **Updated credits.py** - Modified `check_all_accounts()` to log all accounts regardless of credit amount
+- **Updated sheet.py** - Modified `credits_log_login()` and `credits_log_completion()` to append only, updated `_ensure_credits_tab()` to use new schema
+- **Updated dashboard** - Changed credits calculation to sum Credits column instead of Remaining
+- **Check Credits headless** - Removed prompt, now always runs in headless mode
+- **Fixed double entries** - Removed duplicate credit logging from video_gen.py
+
+### Output Directory Change
+
+- **Output directory renamed** - Changed from `output/` to `__OutPut/`
+- **Environment variable** - Added `MAGICLIGHT_OUTPUT` env var (default: `__OutPut`)
+- **File migration** - Existing output files moved to new directory
+- **Old directory removed** - `output/` directory deleted after migration
+
+---
+
 ## v1.5.0 — 2026-04-11  (previously labeled v2.0.3)
 
 - Sheet write guaranteed after video upload

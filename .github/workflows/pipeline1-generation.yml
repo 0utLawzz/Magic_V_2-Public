@@ -94,5 +94,5 @@ jobs:
         with:
           name: generation-output
           path: |
-            output/**
+            __OutPut/**
             pipeline1.log

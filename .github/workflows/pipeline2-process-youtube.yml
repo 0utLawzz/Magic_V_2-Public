@@ -82,7 +82,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: generation-output
-          path: output/
+          path: __OutPut/
         continue-on-error: true   # OK if Pipeline 1 didn't run this time
 
       - name: Run Process / YouTube
@@ -128,5 +128,5 @@ jobs:
         with:
           name: processed-output
           path: |
-            output/**
+            __OutPut/**
             pipeline2.log

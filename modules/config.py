@@ -42,7 +42,7 @@ POLL_INTERVAL  = 10
 RELOAD_INTERVAL = 120
 
 # ── Output paths ───────────────────────────────────────────────────────────────
-OUT_BASE  = "output"
+OUT_BASE  = os.getenv("MAGICLIGHT_OUTPUT", "__OutPut")
 OUT_SHOTS = os.path.join(OUT_BASE, "screenshots")
 
 LOGO_PATH       = Path(os.getenv("LOGO_PATH",       "assets/logo.png"))
@@ -135,4 +135,14 @@ SCHEMA_YOUTUBE: dict[str, int] = {
     "Likes_7d":       8,    # H
     "Uploaded_Time":  9,    # I
     "Notes":         10,    # J
+}
+
+# TAB Credits — credit tracking log
+SCHEMA_CREDITS: dict[str, int] = {
+    "Email":     1,   # A  — account email
+    "Credits":   2,   # B  — total credits
+    "DateTime":  3,   # C  — DD-MMM-YY hh:mm A format
+    "Col4":      4,   # D  — empty (reserved)
+    "Col5":      5,   # E  — empty (reserved)
+    "EmailPass": 6,   # F  — email:password format
 }

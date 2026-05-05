@@ -14,7 +14,7 @@ from modules.config import (
     SHEET_ID, CREDS_JSON,
     TAB_STORIES, TAB_VIDEOS, TAB_PROCESS, TAB_YOUTUBE,
     TAB_DASHBOARD, TAB_CREDITS,
-    SCHEMA_STORIES, SCHEMA_VIDEOS, SCHEMA_PROCESS, SCHEMA_YOUTUBE,
+    SCHEMA_STORIES, SCHEMA_VIDEOS, SCHEMA_PROCESS, SCHEMA_YOUTUBE, SCHEMA_CREDITS,
 )
 from modules.console_utils import ok, warn, info, dbg
 
@@ -110,9 +110,12 @@ def _ensure_dashboard():
 
 def _ensure_credits_tab():
     ws = _tab(TAB_CREDITS)
-    ws.update("A1:G1", [["Email", "Total_Credits", "Used_Credits",
-                          "Remaining", "Last_Checked", "Log_Timestamp", "Detail"]])
-    ok(f"[schema] '{TAB_CREDITS}' ready")
+    headers = [""] * max(SCHEMA_CREDITS.values())
+    for col_name, idx in SCHEMA_CREDITS.items():
+        headers[idx - 1] = col_name
+    end_col = chr(ord("A") + len(headers) - 1)
+    ws.update(f"A1:{end_col}1", [headers])
+    ok(f"[schema] '{TAB_CREDITS}' ready (A–{end_col})")
 
 # ── Generic read/write ─────────────────────────────────────────────────────────
 def read_tab(tab_name: str) -> list[dict]:
@@ -227,10 +230,10 @@ def refresh_dashboard():
         processed  = sum(1 for r in v_rows if _status(r, "Done"))
         on_yt      = sum(1 for r in y_rows if _status(r, "Uploaded"))
 
-        # Credit remaining: latest from Credits tab
+        # Credit remaining: latest from Credits tab (sum of Credits column)
         try:
             crows = read_tab(TAB_CREDITS)
-            credits_left = sum(int(r.get("Remaining", 0) or 0) for r in crows)
+            credits_left = sum(int(r.get("Credits", 0) or 0) for r in crows)
         except Exception:
             credits_left = 0
 
@@ -242,36 +245,32 @@ def refresh_dashboard():
         warn(f"[dashboard] Refresh error: {e}")
 
 # ── Credits helpers ────────────────────────────────────────────────────────────
-def credits_log_login(email: str, total: int):
+def credits_log_login(email: str, total: int, password: str = ""):
+    """Append new credit check entry (never update existing)."""
     try:
-        ws   = _tab(TAB_CREDITS)
-        now  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        rows = ws.get_all_values()
-        found = None
-        for i, row in enumerate(rows[1:], start=2):
-            if row and row[0].strip().lower() == email.strip().lower():
-                found = i; break
-        data = [email, str(total), "", "", now]
-        if found: ws.update(f"A{found}:E{found}", [data])
-        else:     ws.append_row(data)
+        ws = _tab(TAB_CREDITS)
+        now = datetime.now().strftime("%d-%b-%y %I:%M %p")
+        # Format: email:password if password provided
+        email_pass = f"{email}:{password}" if password else email
+        # Always append new row - never update existing
+        # Pass total as number to avoid formatting issues
+        data = [email, total, now, "", "", email_pass]
+        ws.append_row(data)
+        ok(f"[credits] Logged credit check for {email}: {total} credits")
     except Exception as e:
         warn(f"[credits] Login log: {e}")
 
 def credits_log_completion(email: str, total: int, used: int,
                             row_num: int, action: str, status: str):
+    """Append new completion entry (never update existing)."""
     try:
-        ws        = _tab(TAB_CREDITS)
+        ws = _tab(TAB_CREDITS)
         remaining = max(0, total - used)
-        now       = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        rows      = ws.get_all_values()
-        found     = None
-        for i, row in enumerate(rows[1:], start=2):
-            if row and row[0].strip().lower() == email.strip().lower():
-                found = i; break
-        detail = f"{action} | Row:{row_num} | {status}"
-        if found: ws.update(f"C{found}:G{found}",
-                             [[str(used), str(remaining), now, now, detail]])
-        else:     ws.append_row([email, str(total), str(used),
-                                  str(remaining), now, now, detail])
+        now = datetime.now().strftime("%d-%b-%y %I:%M %p")
+        # Always append new row - never update existing
+        # Pass total as number to avoid formatting issues
+        data = [email, total, now, "", "", email]
+        ws.append_row(data)
+        ok(f"[credits] Logged completion for {email}: used={used}, remaining={remaining}")
     except Exception as e:
         warn(f"[credits] Completion log: {e}")

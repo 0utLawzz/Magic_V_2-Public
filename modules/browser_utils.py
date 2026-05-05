@@ -1,6 +1,6 @@
+# === STABLE - DO NOT MODIFY ===
 """
-browser_utils.py — Playwright browser/page helpers
-Popup dismissal, sleep helpers, DOM click utilities, screenshots
+browser_utils.py — Playwright helpers, popup dismissal, credit reading
 """
 
 import os

@@ -1,6 +1,8 @@
 # TASKS — MagicLight Auto v2.0
-# AI context file — read before making ANY changes
-# Updated: 2026-05-05
+
+AI context file — read before making ANY changes
+
+Updated: 2026-05-05
 
 ## Project Status
 Version:    2.0.0
@@ -71,6 +73,62 @@ Tab3 Uploaded   → push_to_youtube_tab()  → Tab4 row (Uploaded)
 - [x] Migrated from master to main branch
 - [x] OAuth authentication support for Drive uploads
 - [x] Service Account and OAuth dual authentication support
+
+### Credits Sheet Restructure (2026-05-06)
+- [x] Updated credits sheet structure to: EMAIL, CREDITS, DATE/TIME (DD-MMM-YY hh:mm A), Col4 (empty), Col5 (empty), EMAIL/PASS
+- [x] Removed unnecessary columns (Found, RowNum, Status)
+- [x] Modified credits.py to append new entries instead of updating existing records
+- [x] Removed automatic deletion of rows with credits < 60 - now logs all accounts
+- [x] Updated EmailPass column to email:password format in Column F
+- [x] Updated all sheet functions to use new SCHEMA_CREDITS structure
+- [x] Removed headless prompt for Check Credits - always runs headless
+- [x] Fixed double entries by removing duplicate credit logging from video_gen.py
+- [x] Marked stable files (video_gen.py, browser_utils.py) with DO NOT MODIFY comment
+- [x] Updated output directory to __OutPut (from output) via MAGICLIGHT_OUTPUT env var
+- [x] Moved existing output files to __OutPut directory
+- [x] Fixed sheet formatting - credit values now passed as numbers not strings
+- [x] Enhanced terminal display with dividers and creative messages for menu and credit check
+
+---
+
+## IMPROVEMENT SUGGESTIONS 💡
+
+**Submitted by:** Cascade (SWE-1.6 AI Assistant)
+**Date:** 2026-05-06
+**Related Task:** Credits Sheet Restructure & Credit Check Enhancement
+
+### Credit Check Function Improvements
+
+1. **Progress Indicator**
+   - Add a progress bar or percentage indicator during credit check
+   - Current: Shows "Account 1/4" but could be more visual
+   - Benefit: Better user experience for large account lists
+
+2. **Summary Table at End**
+   - Display a summary table after credit check completes
+   - Show: Email | Credits | Status (Success/Failed)
+   - Benefit: Quick overview of all accounts checked
+
+3. **Retry Logic for Failed Accounts**
+   - Add automatic retry (1-2 attempts) for failed account checks
+   - Current: Failed accounts are skipped immediately
+   - Benefit: Handles transient network issues better
+
+4. **Dry-Run Mode**
+   - Add `--dry-run` flag to check credits without logging to sheet
+   - Benefit: Useful for testing account credentials before actual run
+
+5. **Credit Threshold Warning**
+   - Add configurable warning threshold (e.g., warn if credits < 100)
+   - Current: Only logs the value, no warning
+   - Benefit: Proactive alert before running out of credits
+
+6. **Parallel Account Checking**
+   - Check multiple accounts in parallel (with configurable concurrency)
+   - Current: Sequential checking (one by one)
+   - Benefit: Faster for large account lists
+
+**Note:** These are optional improvements. Please review and approve if you'd like any implemented.
 
 ---
 

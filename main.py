@@ -181,6 +181,9 @@ def run_setup():
 
 def run_credits(headless=False):
     from modules.credits import check_all_accounts
+    console.print()
+    rule("Credit Check Mode 🔍", style="cyan")
+    console.print()
     check_all_accounts(headless=headless)
 
 def run_health():
@@ -217,6 +220,8 @@ def menu():
     except Exception: pass
 
     console.print()
+    rule("Main Menu 🎛️", style="cyan")
+    console.print()
     mt = Table(show_header=False, box=None, padding=(0,2))
     mt.add_column("k", style="bold cyan", width=4)
     mt.add_column("l", style="bold white", width=22)
@@ -238,8 +243,7 @@ def menu():
     elif ch == "4": mode_full()
     elif ch == "S": run_setup()
     elif ch == "C":
-        hl = _bool("Run headless?", True)
-        run_credits(headless=hl)
+        run_credits(headless=True)
     elif ch == "H": run_health()
     else: warn("Unknown choice.")
 
