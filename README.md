@@ -33,7 +33,7 @@ Tab 1: Stories   →  Tab 2: Videos   →  Tab 3: Process  →  Tab 4: YouTube
 
 ```bash
 # 1. Clone
-git clone https://github.com/net2t/MagicLight-Auto.git
+git clone https://github.com/0utLawzz/Magic_V_2-Public.git
 cd Magic_Light_V_2
 
 # 2. Setup venv

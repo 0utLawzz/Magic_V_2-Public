@@ -1,6 +1,6 @@
 # TASKS — MagicLight Auto v2.0
 # AI context file — read before making ANY changes
-# Updated: 2026-05-01
+# Updated: 2026-05-05
 
 ## Project Status
 Version:    2.0.0
@@ -56,6 +56,21 @@ Tab3 Uploaded   → push_to_youtube_tab()  → Tab4 row (Uploaded)
 - [x] Mode 4: full pipeline in sequence
 - [x] README with Secrets/Variables table
 - [x] CHANGELOG updated
+
+### Critical Runtime Fixes (2026-05-05)
+- [x] Fixed update_row() calls - added required tab_name and schema parameters
+- [x] Fixed wait_site_loaded() call to use keyword argument
+- [x] Fixed OAuth redirect URI mismatch - using fixed port 8080
+- [x] Updated Drive scopes from drive.file to drive for full access
+- [x] Resolved Service Account storage quota issues
+- [x] All critical import errors resolved
+- [x] Health check and setup commands verified working
+- [x] Production-ready for v2.0.0 release
+
+### Infrastructure Updates
+- [x] Migrated from master to main branch
+- [x] OAuth authentication support for Drive uploads
+- [x] Service Account and OAuth dual authentication support
 
 ---
 

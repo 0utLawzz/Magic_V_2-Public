@@ -1,6 +1,6 @@
 # Changelog — MagicLight Auto
 
-## v2.0.0 — 2026-05-01  🎉 Major Release
+## v2.0.0 — 2026-05-05  🎉 Major Release
 
 ### Architecture: 4-Tab Sheet Pipeline
 - **BREAKING**: Single `Database` sheet tab replaced with 4 linked tabs:
@@ -40,6 +40,15 @@
 - Removed: `gdown`, unused `LAYER_COLS`, `Credit_Acct/Total/Used/Remaining` columns
 - `pipeline.py` now handles full trigger chain
 - All sheet ops centralized in `sheet.py` (no direct gspread calls elsewhere)
+
+### Critical Runtime Fixes (2026-05-05)
+- **Fixed update_row() calls** - Added required `tab_name` and `schema` parameters in drive.py and video_process.py
+- **Fixed OAuth redirect URI mismatch** - Using fixed port 8080 for consistent authentication
+- **Updated Drive scopes** - Changed from `drive.file` to `drive` for full access
+- **Resolved Service Account storage quota** - OAuth authentication support for Drive uploads
+- **Fixed wait_site_loaded() call** - Using keyword argument for timeout parameter
+- **All import errors resolved** - Production-ready with health check verification
+- **Branch migration** - Migrated from master to main branch
 
 ---
 
