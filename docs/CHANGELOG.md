@@ -3,6 +3,7 @@
 ## v2.0.0 — 2026-05-05  🎉 Major Release
 
 ### Architecture: 4-Tab Sheet Pipeline
+
 - **BREAKING**: Single `Database` sheet tab replaced with 4 linked tabs:
   - `1_Stories` — input + generation output
   - `2_Videos` — FFmpeg processing queue
@@ -14,34 +15,40 @@
 - Status trigger chain: Tab1 Generated → auto-push Tab2 → Tab2 Done → auto-push Tab3
 
 ### Dual GitHub Pipelines
+
 - **pipeline1-generation.yml** — Story generation only (Tab 1)
 - **pipeline2-process-youtube.yml** — FFmpeg + YouTube (Tab 2 + 3→4)
 - Pipeline 2 auto-triggers after Pipeline 1 via `workflow_run`
 - No `.env` file on GitHub — all config via **Secrets + Variables**
 
 ### Config: Secrets & Variables (no .env on server)
+
 - All GitHub Actions config moved to repo Secrets + Variables
 - Separated concerns: credentials in Secrets, tuning in Variables
 - `.env` only used locally (dev mode)
 - See README for full Secrets/Variables table
 
 ### Sheet Improvements
+
 - `push_to_videos_tab()` — auto-queue Tab 2 after generation
 - `push_to_process_tab()` — auto-queue Tab 3 after processing
 - `refresh_dashboard()` — live counts after every pipeline run
 - `ensure_all_tabs()` — creates all 6 tabs in one `--setup` call
 
 ### Menu
+
 - Mode 4 added: Full Pipeline (1 → 2 → 3 in sequence)
 - Sheet summary shows all 4 tab statuses in menu header
 - Profile selection for FFmpeg (720p / 1080p / 1080p HQ)
 
 ### Code Cleanup
+
 - Removed: `gdown`, unused `LAYER_COLS`, `Credit_Acct/Total/Used/Remaining` columns
 - `pipeline.py` now handles full trigger chain
 - All sheet ops centralized in `sheet.py` (no direct gspread calls elsewhere)
 
 ### Critical Runtime Fixes (2026-05-05)
+
 - **Fixed update_row() calls** - Added required `tab_name` and `schema` parameters in drive.py and video_process.py
 - **Fixed OAuth redirect URI mismatch** - Using fixed port 8080 for consistent authentication
 - **Updated Drive scopes** - Changed from `drive.file` to `drive` for full access
