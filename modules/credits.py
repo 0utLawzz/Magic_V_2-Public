@@ -12,6 +12,7 @@ from modules.browser_utils import (
     wait_site_loaded, dismiss_all, read_credits_from_page
 )
 from modules.console_utils import ok, warn, err, info, console
+from rich.progress import Progress, BarColumn, TextColumn, TaskProgressColumn
 from modules.sheet import credits_log_login, _tab
 from modules.config import EMAIL, PASSWORD, TAB_CREDITS, SCHEMA_CREDITS
 from modules.video_gen import login, _logout
@@ -45,35 +46,45 @@ def check_all_accounts(headless: bool = False):
     set_browser(browser)
 
     checked = failed = 0
-    for idx, (email, password) in enumerate(accounts, 1):
-        console.print()
-        rule(f"Account {idx}/{len(accounts)}", style="dim")
-        info(f"[Credits] Checking: {email}")
-        try:
-            context = browser.new_context(accept_downloads=True, no_viewport=True)
-            page    = context.new_page()
-            login(page, custom_email=email, custom_pw=password)
-
+    with Progress(
+        TextColumn("[bold cyan]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+        expand=False
+    ) as progress:
+        task = progress.add_task("[Credits] Checking accounts...", total=len(accounts))
+        for idx, (email, password) in enumerate(accounts, 1):
+            console.print()
+            rule(f"Account {idx}/{len(accounts)}", style="dim")
+            info(f"[Credits] Checking: {email}")
             try:
-                page.goto("https://magiclight.ai/user-center", timeout=45000)
-                wait_site_loaded(page, None, timeout=30)
-                sleep_log(2, "user center settle")
+                context = browser.new_context(accept_downloads=True, no_viewport=True)
+                page    = context.new_page()
+                login(page, custom_email=email, custom_pw=password)
+
+                try:
+                    page.goto("https://magiclight.ai/user-center", timeout=45000)
+                    wait_site_loaded(page, None, timeout=30)
+                    sleep_log(2, "user center settle")
+                except Exception as e:
+                    warn(f"[Credits] Could not load user center: {e}")
+
+                total, _ = read_credits_from_page(page)
+                ok(f"[Credits] 💰 Credits: {total}")
+                credits_log_login(email, total, password)
+                checked += 1
+                progress.update(task, advance=1)
+
+                try: _logout(page)
+                except Exception: pass
+                context.close()
             except Exception as e:
-                warn(f"[Credits] Could not load user center: {e}")
-
-            total, _ = read_credits_from_page(page)
-            ok(f"[Credits] 💰 Credits: {total}")
-            credits_log_login(email, total, password)
-            checked += 1
-
-            try: _logout(page)
-            except Exception: pass
-            context.close()
-        except Exception as e:
-            err(f"[Credits] Failed for {email}: {e}")
-            failed += 1
-            try: context.close()
-            except Exception: pass
+                err(f"[Credits] Failed for {email}: {e}")
+                failed += 1
+                progress.update(task, advance=1)
+                try: context.close()
+                except Exception: pass
 
     try:
         browser.close()

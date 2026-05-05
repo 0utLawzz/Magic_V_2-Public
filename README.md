@@ -1,4 +1,4 @@
-# MagicLight Auto v2.0 🪄
+# MagicLight Auto v2.0 🤖🚀
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Version](https://img.shields.io/badge/version-v2.0.0-brightgreen)
@@ -31,25 +31,38 @@ Tab 1: Stories   →  Tab 2: Videos   →  Tab 3: Process  →  Tab 4: YouTube
 
 ## Quick Start (Local)
 
-```bash
-# 1. Clone
+### 1. Clone
+
+```
 git clone https://github.com/0utLawzz/Magic_V_2-Public.git
 cd Magic_Light_V_2
+```
 
-# 2. Setup venv
+### 2. Setup venv
+
+```
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 playwright install chromium
+```
 
-# 3. Fill in .env (local only)
+### 3. Fill in .env (local only)
+
+```
 cp .env.example .env
 # Add SHEET_ID, DRIVE_FOLDER_ID etc.
+```
 
-# 4. Initialize Sheet tabs (run once)
+### 4. Initialize Sheet tabs (run once)
+
+```
 python main.py --setup
+```
 
-# 5. Run
+### 5. Run
+
+```
 python main.py
 ```
 
@@ -91,11 +104,13 @@ No `.env` needed on GitHub. Use **Secrets + Variables** only.
 ### Two Pipelines
 
 **Pipeline 1** (`pipeline1-generation.yml`)
+
 - Trigger: Manual or scheduled (every 4h)
 - Reads Tab 1 pending stories → generates → downloads → queues Tab 2
 - Inputs: quantity, upload_drive, loop
 
 **Pipeline 2** (`pipeline2-process-youtube.yml`)
+
 - Trigger: Manual OR auto after Pipeline 1 completes
 - Modes: `process` / `youtube` / `both`
 - Reads Tab 2 → FFmpeg → queues Tab 3
