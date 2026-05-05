@@ -25,7 +25,7 @@ Tab 1: Stories   →  Tab 2: Videos   →  Tab 3: Process  →  Tab 4: YouTube
 | **3_Process** | YT Staging | YouTube metadata (title, description, tags, privacy) |
 | **4_YouTube** | YT Results | Video ID, URL, publish time, stats |
 | Dashboard | Summary | Live counts: generated / processed / on YouTube / credits |
-| **Credits** | Accounts | Per-account credit tracking (append-only log with auto-cleanup for < 60 credits) |
+| **Credits** | Accounts | Per-account credit tracking (append-only log with duplicate detection) |
 
 ---
 

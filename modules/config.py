@@ -139,10 +139,11 @@ SCHEMA_YOUTUBE: dict[str, int] = {
 
 # TAB Credits — credit tracking log
 SCHEMA_CREDITS: dict[str, int] = {
-    "Email":     1,   # A  — account email
-    "Credits":   2,   # B  — total credits
-    "DateTime":  3,   # C  — DD-MMM-YY hh:mm A format
-    "Col4":      4,   # D  — empty (reserved)
-    "Col5":      5,   # E  — empty (reserved)
-    "EmailPass": 6,   # F  — email:password format
+    "Email":         1,   # A
+    "Credits":       2,   # B
+    "DateTime":      3,   # C
+    "Duplicate":     4,   # D
+    "DupRowNumber":  5,   # E
+    "EmailPass":     6,   # F (email:password)
+    "Status":        7,   # G
 }

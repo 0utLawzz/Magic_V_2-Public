@@ -13,12 +13,13 @@ from modules.browser_utils import (
 )
 from modules.console_utils import ok, warn, err, info, console
 from rich.progress import Progress, BarColumn, TextColumn, TaskProgressColumn
+from rich.table import Table
 from modules.sheet import credits_log_login, _tab
 from modules.config import EMAIL, PASSWORD, TAB_CREDITS, SCHEMA_CREDITS
 from modules.video_gen import login, _logout
 
 
-def check_all_accounts(headless: bool = False):
+def check_all_accounts(headless: bool = False, dry_run: bool = False, credit_threshold: int = 150):
     """Login to every account in accounts.txt, read credits, log to Sheet."""
     from modules.console_utils import rule
     accounts = []
@@ -37,7 +38,11 @@ def check_all_accounts(headless: bool = False):
             return
 
     console.print()
-    rule("Starting Engine 🚀", style="cyan")
+    if dry_run:
+        rule("Starting Engine 🚀 (DRY-RUN MODE)", style="yellow")
+        warn("[Credits Check] Dry-run mode - will NOT log to sheet")
+    else:
+        rule("Starting Engine 🚀", style="cyan")
     ok(f"[Credits Check] {len(accounts)} account(s) found")
     console.print()
 
@@ -46,6 +51,7 @@ def check_all_accounts(headless: bool = False):
     set_browser(browser)
 
     checked = failed = 0
+    results = []  # Track results for summary table
     with Progress(
         TextColumn("[bold cyan]{task.description}"),
         BarColumn(),
@@ -71,9 +77,13 @@ def check_all_accounts(headless: bool = False):
                     warn(f"[Credits] Could not load user center: {e}")
 
                 total, _ = read_credits_from_page(page)
-                ok(f"[Credits] 💰 Credits: {total}")
-                credits_log_login(email, total, password)
+                ok(f"[Credits] Credits: {total}")
+                if total < credit_threshold:
+                    warn(f"[Credits] ⚠️ Low credits warning: {total} < {credit_threshold}")
+                if not dry_run:
+                    credits_log_login(email, total, password, status="Success")
                 checked += 1
+                results.append({"email": email, "credits": total, "status": "Success"})
                 progress.update(task, advance=1)
 
                 try: _logout(page)
@@ -82,6 +92,9 @@ def check_all_accounts(headless: bool = False):
             except Exception as e:
                 err(f"[Credits] Failed for {email}: {e}")
                 failed += 1
+                if not dry_run:
+                    credits_log_login(email, 0, password, status="Failed")
+                results.append({"email": email, "credits": 0, "status": "Failed"})
                 progress.update(task, advance=1)
                 try: context.close()
                 except Exception: pass
@@ -96,3 +109,18 @@ def check_all_accounts(headless: bool = False):
     rule("Credit Check Complete ✅", style="green")
     ok(f"[Credits Check] Done: {checked} checked, {failed} failed")
     console.print()
+
+    # Display summary table
+    if results:
+        console.print()
+        rule("Summary Table 📊", style="cyan")
+        console.print()
+        summary_table = Table(title="Credit Check Results")
+        summary_table.add_column("Email", style="cyan", width=30)
+        summary_table.add_column("Credits", style="green", justify="right")
+        summary_table.add_column("Status", style="bold", width=10)
+        for r in results:
+            status_style = "green" if r["status"] == "Success" else "red"
+            summary_table.add_row(r["email"], str(r["credits"]), f"[{status_style}]{r['status']}")
+        console.print(summary_table)
+        console.print()

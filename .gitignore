@@ -15,6 +15,7 @@ token.json
 
 # Output
 output/
+__OutPut/
 *.mp4
 *.avi
 *.mov
@@ -24,6 +25,7 @@ output/
 *.log
 .menu_state.json
 output/screenshots/
+__OutPut/screenshots/
 
 # OS
 .DS_Store

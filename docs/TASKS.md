@@ -105,26 +105,26 @@ Tab3 Uploaded   → push_to_youtube_tab()  → Tab4 row (Uploaded)
    - Current: Shows "Account 1/4" but could be more visual
    - Benefit: Better user experience for large account lists
 
-2. **Summary Table at End**
+2. **Summary Table at End**  `✅ Approved`
    - Display a summary table after credit check completes
    - Show: Email | Credits | Status (Success/Failed)
    - Benefit: Quick overview of all accounts checked
 
-3. **Retry Logic for Failed Accounts**
+3. **Retry Logic for Failed Accounts**  `❌ Not Neccery`
    - Add automatic retry (1-2 attempts) for failed account checks
    - Current: Failed accounts are skipped immediately
    - Benefit: Handles transient network issues better
 
-4. **Dry-Run Mode**
+4. **Dry-Run Mode**  `✅ Approved`
    - Add `--dry-run` flag to check credits without logging to sheet
    - Benefit: Useful for testing account credentials before actual run
 
-5. **Credit Threshold Warning**
-   - Add configurable warning threshold (e.g., warn if credits < 100)
+5. **Credit Threshold Warning** `✅ Approved`
+   - Add configurable warning threshold (e.g., warn if credits < 150)
    - Current: Only logs the value, no warning
    - Benefit: Proactive alert before running out of credits
 
-6. **Parallel Account Checking**
+6. **Parallel Account Checking** `✅ Approved`
    - Check multiple accounts in parallel (with configurable concurrency)
    - Current: Sequential checking (one by one)
    - Benefit: Faster for large account lists

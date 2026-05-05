@@ -110,12 +110,9 @@ def _ensure_dashboard():
 
 def _ensure_credits_tab():
     ws = _tab(TAB_CREDITS)
-    headers = [""] * max(SCHEMA_CREDITS.values())
-    for col_name, idx in SCHEMA_CREDITS.items():
-        headers[idx - 1] = col_name
-    end_col = chr(ord("A") + len(headers) - 1)
-    ws.update(f"A1:{end_col}1", [headers])
-    ok(f"[schema] '{TAB_CREDITS}' ready (A–{end_col})")
+    headers = list(SCHEMA_CREDITS.keys())
+    ws.update(f"A1:{chr(64+len(headers))}1", [headers])
+    ok(f"[schema] '{TAB_CREDITS}' ready (A–{chr(64+len(headers))})")
 
 # ── Generic read/write ─────────────────────────────────────────────────────────
 def read_tab(tab_name: str) -> list[dict]:
@@ -245,7 +242,7 @@ def refresh_dashboard():
         warn(f"[dashboard] Refresh error: {e}")
 
 # ── Credits helpers ────────────────────────────────────────────────────────────
-def credits_log_login(email: str, total: int, password: str = ""):
+def credits_log_login(email: str, total: int, password: str = "", is_duplicate: bool = False, dup_row: int = 0, status: str = "Success"):
     """Append new credit check entry (never update existing)."""
     try:
         ws = _tab(TAB_CREDITS)
@@ -254,7 +251,9 @@ def credits_log_login(email: str, total: int, password: str = ""):
         email_pass = f"{email}:{password}" if password else email
         # Always append new row - never update existing
         # Pass total as number to avoid formatting issues
-        data = [email, total, now, "", "", email_pass]
+        dup_str = "Yes" if is_duplicate else ""
+        dup_row_str = str(dup_row) if dup_row > 0 else ""
+        data = [email, total, now, dup_str, dup_row_str, email_pass, status]
         ws.append_row(data)
         ok(f"[credits] Logged credit check for {email}: {total} credits")
     except Exception as e:
@@ -269,7 +268,7 @@ def credits_log_completion(email: str, total: int, used: int,
         now = datetime.now().strftime("%d-%b-%y %I:%M %p")
         # Always append new row - never update existing
         # Pass total as number to avoid formatting issues
-        data = [email, total, now, "", "", email]
+        data = [email, total, now, "", "", email, status]
         ws.append_row(data)
         ok(f"[credits] Logged completion for {email}: used={used}, remaining={remaining}")
     except Exception as e:

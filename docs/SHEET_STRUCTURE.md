@@ -52,3 +52,28 @@ Pending → Processing → Generated → Done
 python main.py --migrate-schema
 ```
 This writes all 23 headers to row 1 automatically.
+
+---
+
+## Credits Tab Structure
+
+The Credits tab is a separate tab for tracking account credit balances.
+
+### Column Layout (A–G, 7 columns)
+
+| Col | Name | Description |
+|-----|------|-------------|
+| A | `Email` | Account email address |
+| B | `Credits` | Credit balance (number format) |
+| C | `DateTime` | Timestamp of credit check (DD-MMM-YY hh:mm A) |
+| D | `Duplicate` | "Yes" if this is a duplicate entry |
+| E | `DupRowNumber` | Row number of original entry if duplicate |
+| F | `EmailPass` | Email:Password format for reference |
+| G | `Status` | "Success" or "Failed" |
+
+### Usage
+
+- Append-only log — each credit check adds a new row
+- Run via menu option C or `python main.py --credits`
+- Always runs in headless mode
+- Tracks duplicate entries for cleanup

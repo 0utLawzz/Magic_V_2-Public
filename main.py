@@ -179,12 +179,12 @@ def run_setup():
     console.print("[dim]  1_Stories / 2_Videos / 3_Process / 4_YouTube / Dashboard / Credits[/dim]")
     console.print("[dim]Set any row in 1_Stories Status='Pending' to queue it.[/dim]")
 
-def run_credits(headless=False):
+def run_credits(headless=False, dry_run=False):
     from modules.credits import check_all_accounts
     console.print()
     rule("Credit Check Mode 🔍", style="cyan")
     console.print()
-    check_all_accounts(headless=headless)
+    check_all_accounts(headless=headless, dry_run=dry_run)
 
 def run_health():
     import subprocess
@@ -249,15 +249,27 @@ def menu():
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 def _args():
-    p = argparse.ArgumentParser(description=f"MagicLight Auto v{__version__}")
-    p.add_argument("--mode",     choices=["1","2","3","full"])
-    p.add_argument("--max",      type=int, default=0)
-    p.add_argument("--upload",   action="store_true")
-    p.add_argument("--headless", action="store_true")
-    p.add_argument("--loop",     action="store_true")
-    p.add_argument("--setup",    action="store_true")
-    p.add_argument("--credits",  action="store_true")
-    p.add_argument("--health",   action="store_true")
+    p = argparse.ArgumentParser(
+        description=f"MagicLight Auto v{__version__} — 4-Tab Kids Story Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py --mode 1 --max 5 --headless      # Generate 5 stories headless
+  python main.py --mode 2 --upload               # Process videos and upload to Drive
+  python main.py --credits                       # Check all account credits
+  python main.py --health                        # Run health check
+  python main.py                                 # Interactive menu
+        """
+    )
+    p.add_argument("--mode",     choices=["1","2","3","full"], help="Pipeline mode: 1=Generate, 2=Process, 3=YouTube, full=All")
+    p.add_argument("--max",      type=int, default=0, help="Max items to process (0 = all pending)")
+    p.add_argument("--upload",   action="store_true", help="Upload output to Drive")
+    p.add_argument("--headless", action="store_true", help="Run browser in headless mode")
+    p.add_argument("--loop",     action="store_true", help="Loop until all pending done")
+    p.add_argument("--setup",    action="store_true", help="Initialize sheet tabs (run once)")
+    p.add_argument("--credits",  action="store_true", help="Check account credit balances")
+    p.add_argument("--dry-run",  action="store_true", help="Check credits without logging to sheet")
+    p.add_argument("--health",   action="store_true", help="Run health check")
     return p.parse_args()
 
 if __name__ == "__main__":
@@ -266,7 +278,7 @@ if __name__ == "__main__":
         a = _args()
         if   a.setup:          run_setup()
         elif a.health:         run_health()
-        elif a.credits:        run_credits(headless=a.headless)
+        elif a.credits:        run_credits(headless=a.headless, dry_run=a.dry_run)
         elif a.mode == "1":    mode1(a, headless=a.headless)
         elif a.mode == "2":    mode2(a)
         elif a.mode == "3":    mode3(a)

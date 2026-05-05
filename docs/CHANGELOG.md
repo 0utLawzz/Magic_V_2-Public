@@ -64,16 +64,20 @@
 ### Credits Sheet Restructure
 
 - **BREAKING**: Credits sheet structure changed to append-only log
-  - New columns: EMAIL, CREDITS, DATE/TIME (DD-MMM-YY hh:mm A), Col4 (empty), Col5 (empty), EMAIL/PASS
+  - New columns: EMAIL, CREDITS, DATE/TIME (DD-MMM-YY hh:mm A), Duplicate, DupRowNumber, EMAIL/PASS, Status
   - Previous columns: Email, Total_Credits, Used_Credits, Remaining, Last_Checked, Log_Timestamp, Detail
 - **Append-only behavior** - Credit checks now add new rows instead of updating existing records
 - **Email/Password format** - Column F stores email:password format (e.g., user@example.com:password123)
+- **Duplicate tracking** - Added Duplicate and DupRowNumber columns for duplicate entry detection
+- **Status tracking** - Added Status column (Success/Failed) for each credit check
 - **Added SCHEMA_CREDITS** to config.py for consistent column mapping
 - **Updated credits.py** - Modified `check_all_accounts()` to log all accounts regardless of credit amount
 - **Updated sheet.py** - Modified `credits_log_login()` and `credits_log_completion()` to append only, updated `_ensure_credits_tab()` to use new schema
 - **Updated dashboard** - Changed credits calculation to sum Credits column instead of Remaining
 - **Check Credits headless** - Removed prompt, now always runs in headless mode
 - **Fixed double entries** - Removed duplicate credit logging from video_gen.py
+- **Progress indicator** - Added Rich progress bar for credit check function
+- **Output folder** - Added __OutPut/ to .gitignore
 
 ### Output Directory Change
 
