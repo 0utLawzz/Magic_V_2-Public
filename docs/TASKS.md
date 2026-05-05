@@ -89,6 +89,11 @@ Tab3 Uploaded   → push_to_youtube_tab()  → Tab4 row (Uploaded)
 - [x] Fixed sheet formatting - credit values now passed as numbers not strings
 - [x] Enhanced terminal display with dividers and creative messages for menu and credit check
 - [x] Implemented progress indicator for credit check (approved improvement)
+- [x] Implemented summary table at end (approved improvement)
+- [x] Implemented dry-run mode (approved improvement)
+- [x] Implemented credit threshold warning < 150 (approved improvement)
+- [x] Implemented parallel account checking with configurable concurrency (approved improvement)
+- [x] Marked credits.py and run_health() as stable (DO NOT MODIFY)
 
 ---
 

@@ -66,6 +66,19 @@ python main.py --setup
 python main.py
 ```
 
+### Credit Check with Parallel Processing
+
+```
+# Sequential (default)
+python main.py --credits
+
+# Parallel (recommended for GitHub Actions)
+python main.py --credits --concurrency 2
+
+# Parallel with dry-run
+python main.py --credits --concurrency 3 --dry-run
+```
+
 ---
 
 ## GitHub Actions Setup

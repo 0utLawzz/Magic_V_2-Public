@@ -59,6 +59,34 @@
 
 ---
 
+## v2.0.3 — 2026-05-06
+
+### Parallel Account Checking
+
+- **Parallel credit checking** - Added ThreadPoolExecutor for concurrent account checks
+- **Configurable concurrency** - Added `--concurrency` flag (default: 1, recommended: 2-3 for GitHub Actions)
+- **Thread-safe implementation** - Each account runs in separate browser context
+- **Performance improvement** - Significantly faster for large account lists
+- **Resource-aware** - Configurable to match runner capabilities
+- **Marked stable** - credits.py and run_health() marked as DO NOT MODIFY
+
+---
+
+## v2.0.2 — 2026-05-06
+
+### Credits Sheet Schema Update
+
+- **Updated Credits schema** - 7 columns: Email, Credits, DateTime, Duplicate, DupRowNumber, EmailPass, Status
+- **Status tracking** - Added Success/Failed status for each credit check
+- **Duplicate tracking** - Added columns for duplicate entry detection
+- **Summary table** - Implemented summary table at end of credit check
+- **Dry-run mode** - Added `--dry-run` flag to check without logging
+- **Credit threshold warning** - Warns if credits < 150 (configurable)
+- **Improved --help** - Added examples and detailed descriptions
+- **Updated documentation** - README.md, SHEET_STRUCTURE.md, CHANGELOG.md, TASKS.md
+
+---
+
 ## v2.0.1 — 2026-05-06
 
 ### Credits Sheet Restructure
