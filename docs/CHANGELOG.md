@@ -59,6 +59,20 @@
 
 ---
 
+## v2.0.4 — 2026-05-06
+
+### Video Process Mode Enhancement
+
+- **Dual mode processing** - Added support for both Sheet-based and Local file processing
+- **Local file mode** - New `--local` flag for processing files from local directory
+- **Interactive option 2L** - Added "2L" menu option for local file processing
+- **Directory scanning** - Automatically scans for video files in specified directory
+- **Sheet integration** - Option to update Google Sheet with local processing results
+- **Unique Row_ID** - Local files get unique LOCAL_ prefixed Row_IDs in sheet
+- **Enhanced CLI help** - Updated examples and descriptions for both modes
+
+---
+
 ## v2.0.3 — 2026-05-06
 
 ### Parallel Account Checking
@@ -69,6 +83,7 @@
 - **Performance improvement** - Significantly faster for large account lists
 - **Resource-aware** - Configurable to match runner capabilities
 - **Marked stable** - credits.py and run_health() marked as DO NOT MODIFY
+- **Fixed Playwright conflicts** - Disabled parallel mode due to Sync API conflicts, falls back to sequential
 
 ---
 

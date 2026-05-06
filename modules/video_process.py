@@ -260,6 +260,102 @@ def process_video(input_video: Path, dry_run: bool = False, profile: str = "1080
     return run_ffmpeg(cmd, input_video, output_file, dry_run=dry_run)
 
 
+# ── Public: process local files (Mode 2 Local) ────────────────────────────────
+def process_local_files(directory: Path, upload: bool = False, profile: str = "1080p") -> int:
+    """Process video files from local directory and optionally update sheet."""
+    if not directory.exists():
+        err(f"Directory not found: {directory}")
+        return 1
+    
+    # Scan for video files in directory
+    videos = []
+    for ext in VIDEO_EXTS:
+        videos.extend(directory.glob(f"*{ext}"))
+        videos.extend(directory.glob(f"*{ext.upper()}"))
+    
+    # Filter out already processed files
+    unprocessed = []
+    for video in videos:
+        if (video.stem.endswith("_processed") or 
+            "-Processed-" in video.stem or 
+            "_thumb" in video.stem):
+            continue
+        unprocessed.append(video)
+    
+    if not unprocessed:
+        warn(f"No unprocessed video files found in {directory}")
+        return 0
+    
+    ok(f"Found {len(unprocessed)} video file(s) to process")
+    
+    ok_count = fail_count = 0
+    for i, vid in enumerate(unprocessed, 1):
+        console.rule(f"[cyan][{i}/{len(unprocessed)}]  {vid.name}[/cyan]")
+        
+        # Process the video
+        success = process_video(vid, dry_run=False, profile=profile)
+        if success:
+            ok_count += 1
+            
+            # Upload to Drive if requested
+            if upload:
+                try:
+                    processed_file = vid.parent / f"{vid.stem}_processed{vid.suffix}"
+                    if not processed_file.exists():
+                        # Try alternative naming convention
+                        safe_name = make_processed_name(999, vid.stem)
+                        processed_file = vid.parent / f"{safe_name}{vid.suffix}"
+                    
+                    if processed_file.exists():
+                        folder_name = directory.name or "Local_Processed"
+                        processed_link = upload_file(str(processed_file), folder_name)
+                        ok(f"Uploaded to Drive: {processed_link}")
+                        
+                        # Ask if user wants to update sheet
+                        update_sheet = console.input("  [bold cyan]Update sheet with this result?[/bold cyan] [dim](Y/N)[/dim]: ").strip().upper()
+                        if update_sheet == "Y":
+                            _update_sheet_for_local_file(vid, processed_file, processed_link)
+                    else:
+                        warn("Processed file not found for upload")
+                except Exception as e:
+                    err(f"Upload failed: {e}")
+        else:
+            fail_count += 1
+    
+    console.print()
+    console.rule()
+    ok(f"Local processing done!  OK={ok_count}  FAIL={fail_count}")
+    return 0 if fail_count == 0 else 1
+
+
+def _update_sheet_for_local_file(original_file: Path, processed_file: Path, drive_link: str):
+    """Update sheet with local file processing results."""
+    try:
+        from modules.sheet import append_row, SCHEMA_VIDEOS
+        import uuid
+        
+        # Generate a unique Row_ID for local files
+        row_id = f"LOCAL_{uuid.uuid4().hex[:8]}"
+        
+        # Append to Videos tab
+        append_row(
+            "2_Videos", SCHEMA_VIDEOS,
+            Row_ID         = row_id,
+            Title          = original_file.stem,
+            Local_Path     = str(processed_file),
+            Drive_Raw      = "",  # No raw video for local files
+            Drive_Thumb    = "",
+            Status         = "Done",
+            Process_Time   = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            Process_Drive  = drive_link,
+            Completed_Time = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            Notes          = "Processed from local file"
+        )
+        ok(f"[sheet] Added to Videos tab with Row_ID: {row_id}")
+    except Exception as e:
+        warn(f"[sheet] Failed to update: {e}")
+
+
 # ── Public: process all pending videos ────────────────────────────────────────
 def process_all(videos: list[Path] = None, dry_run: bool = False,
                 upload: bool = False, profile: str = "1080p") -> int:

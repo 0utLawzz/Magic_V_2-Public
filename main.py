@@ -131,23 +131,54 @@ def mode1(args=None, headless=False):
 
 def mode2(args=None):
     from modules.pipeline import run_processing
-    from modules.video_process import PROFILES
+    from modules.video_process import PROFILES, process_local_files
     s = _load()
     console.print(); rule("Mode 2 — Video Process", style="cyan"); console.print()
 
-    qty    = getattr(args, "max", 0) or _int("How many? (0=all pending in Tab2)", 0)
-    upload = getattr(args, "upload", None)
-    if upload is None: upload = _bool("Upload processed video to Drive?", s.get("upload", True))
+    # Check if local mode is requested
+    local_mode = getattr(args, "local", False)
+    
+    if local_mode:
+        # Local file processing mode
+        console.print("[bold yellow]LOCAL MODE[/bold yellow] - Processing files from local directory")
+        
+        # Get directory from user or use default
+        default_dir = str(Path(__file__).parent / "__OutPut")
+        dir_path = console.input(f"  [bold cyan]Directory path[/bold cyan] [dim](default: {default_dir})[/dim]: ").strip()
+        if not dir_path:
+            dir_path = default_dir
+        
+        dir_path = Path(dir_path)
+        if not dir_path.exists():
+            err(f"Directory not found: {dir_path}")
+            return
+        
+        upload = getattr(args, "upload", None)
+        if upload is None: upload = _bool("Upload processed video to Drive?", s.get("upload", True))
+        
+        console.print()
+        for i, (k, v) in enumerate(PROFILES.items(), 1):
+            console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
+        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1/2/3, default 2)[/dim]: ").strip()
+        profile = list(PROFILES.keys())[int(pi)-1] if pi.isdigit() and 1<=int(pi)<=3 else "1080p"
+        
+        console.print()
+        process_local_files(dir_path, upload=upload, profile=profile)
+    else:
+        # Sheet-based processing mode (original)
+        qty    = getattr(args, "max", 0) or _int("How many? (0=all pending in Tab2)", 0)
+        upload = getattr(args, "upload", None)
+        if upload is None: upload = _bool("Upload processed video to Drive?", s.get("upload", True))
 
-    console.print()
-    for i, (k, v) in enumerate(PROFILES.items(), 1):
-        console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
-    pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1/2/3, default 2)[/dim]: ").strip()
-    profile = list(PROFILES.keys())[int(pi)-1] if pi.isdigit() and 1<=int(pi)<=3 else "1080p"
+        console.print()
+        for i, (k, v) in enumerate(PROFILES.items(), 1):
+            console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
+        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1/2/3, default 2)[/dim]: ").strip()
+        profile = list(PROFILES.keys())[int(pi)-1] if pi.isdigit() and 1<=int(pi)<=3 else "1080p"
 
-    _save({**s, "upload": upload, "profile": profile})
-    console.print()
-    run_processing(limit=qty, upload=upload, profile=profile, auto_trigger_youtube=True)
+        _save({**s, "upload": upload, "profile": profile})
+        console.print()
+        run_processing(limit=qty, upload=upload, profile=profile, auto_trigger_youtube=True)
 
 def mode3(args=None):
     from modules.pipeline import run_youtube_upload
@@ -229,6 +260,7 @@ def menu():
     mt.add_column("d", style="dim")
     mt.add_row("1",  "Video Making",    "Tab 1 — Generate from MagicLight.ai")
     mt.add_row("2",  "Video Process",   "Tab 2 — FFmpeg: logo + trim + endscreen")
+    mt.add_row("2L", "Video Process",   "Local files — Process & upload to Drive")
     mt.add_row("3",  "YouTube Upload",  "Tab 3→4 — Post processed video to YouTube")
     mt.add_row("4",  "Full Pipeline",   "Run all 3 modes in sequence")
     mt.add_row("─",  "──────────────",  "─────────────────────────────────────────")
@@ -237,9 +269,12 @@ def menu():
     mt.add_row("H",  "Health Check",    "Verify packages, FFmpeg, secrets, assets")
     console.print(mt); console.print()
 
-    ch = console.input("  [bold cyan]Select [1/2/3/4/S/C/H]: [/bold cyan]").strip().upper()
+    ch = console.input("  [bold cyan]Select [1/2/2L/3/4/S/C/H]: [/bold cyan]").strip().upper()
     if   ch == "1": mode1()
     elif ch == "2": mode2()
+    elif ch == "2L": 
+        args = type('Args', (), {'local': True, 'upload': None})()
+        mode2(args)
     elif ch == "3": mode3()
     elif ch == "4": mode_full()
     elif ch == "S": run_setup()
@@ -256,7 +291,8 @@ def _args():
         epilog="""
 Examples:
   python main.py --mode 1 --max 5 --headless      # Generate 5 stories headless
-  python main.py --mode 2 --upload               # Process videos and upload to Drive
+  python main.py --mode 2 --upload               # Process videos from sheet and upload to Drive
+  python main.py --mode 2 --local --upload       # Process local videos and upload to Drive
   python main.py --credits                       # Check all account credits
   python main.py --health                        # Run health check
   python main.py                                 # Interactive menu
@@ -271,6 +307,7 @@ Examples:
     p.add_argument("--credits",    action="store_true", help="Check account credit balances")
     p.add_argument("--dry-run",    action="store_true", help="Check credits without logging to sheet")
     p.add_argument("--concurrency",type=int, default=2, help="Parallel account checking (default: 2, recommended: 2-3 for GitHub Actions)")
+    p.add_argument("--local",      action="store_true", help="Process local files instead of sheet data (Mode 2 only)")
     p.add_argument("--health",     action="store_true", help="Run health check")
     return p.parse_args()
 

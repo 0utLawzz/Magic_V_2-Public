@@ -79,6 +79,20 @@ python main.py --credits --concurrency 2
 python main.py --credits --concurrency 3 --dry-run
 ```
 
+### Video Process Modes
+
+```
+# Mode 2: Process from Google Sheet
+python main.py --mode 2 --upload
+
+# Mode 2 Local: Process local files
+python main.py --mode 2 --local --upload
+
+# Interactive menu - option 2L for local processing
+python main.py
+# Then select "2L" for local file processing
+```
+
 ---
 
 ## GitHub Actions Setup
