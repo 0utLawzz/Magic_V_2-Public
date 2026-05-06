@@ -116,7 +116,23 @@ def _ensure_credits_tab():
 
 # ── Generic read/write ─────────────────────────────────────────────────────────
 def read_tab(tab_name: str) -> list[dict]:
-    return _tab(tab_name).get_all_records(head=1)
+    from modules.config import SCHEMA_STORIES, SCHEMA_VIDEOS, SCHEMA_PROCESS, SCHEMA_YOUTUBE
+    
+    # Map tab names to their schemas
+    schema_map = {
+        "1_Stories": SCHEMA_STORIES,
+        "2_Videos": SCHEMA_VIDEOS,
+        "3_Process": SCHEMA_PROCESS,
+        "4_YouTube": SCHEMA_YOUTUBE
+    }
+    
+    schema = schema_map.get(tab_name, {})
+    if schema:
+        # Use schema keys as expected headers
+        expected_headers = list(schema.keys())
+        return _tab(tab_name).get_all_records(head=1, expected_headers=expected_headers)
+    else:
+        return _tab(tab_name).get_all_records(head=1)
 
 def update_row(tab_name: str, row_num: int, schema: dict, **kw):
     """Write named columns to a specific row in a tab."""
