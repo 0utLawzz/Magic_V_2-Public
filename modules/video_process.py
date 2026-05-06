@@ -267,11 +267,11 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
         err(f"Directory not found: {directory}")
         return 1
     
-    # Scan for video files in directory
+    # Scan for video files in directory (recursive)
     videos = []
     for ext in VIDEO_EXTS:
-        videos.extend(directory.glob(f"*{ext}"))
-        videos.extend(directory.glob(f"*{ext.upper()}"))
+        videos.extend(directory.rglob(f"*{ext}"))
+        videos.extend(directory.rglob(f"*{ext.upper()}"))
     
     # Filter out already processed files
     unprocessed = []
