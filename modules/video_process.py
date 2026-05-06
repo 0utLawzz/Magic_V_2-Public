@@ -278,6 +278,25 @@ def process_video(input_video: Path, dry_run: bool = False, profile: str = "1080
     return run_ffmpeg(cmd, input_video, output_file, dry_run=dry_run)
 
 
+# ── Thumbnail generation ───────────────────────────────────────────────────────
+def generate_thumbnail(video_path: Path, output_path: Path, timestamp: str = "00:00:01") -> bool:
+    """Generate thumbnail from video at specific timestamp."""
+    try:
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", str(video_path),
+            "-ss", timestamp,
+            "-vframes", "1",
+            "-vf", "scale=1280:720",
+            str(output_path)
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        return proc.returncode == 0
+    except Exception as e:
+        warn(f"Thumbnail generation failed: {e}")
+        return False
+
+
 # ── Public: process local files (Mode 2 Local) ────────────────────────────────
 def process_local_files(directory: Path, upload: bool = False, profile: str = "1080p", max_files: int = 0) -> int:
     """Process video files from local directory and optionally update sheet."""
@@ -328,9 +347,18 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
                 row_id = f"LOCAL_{uuid.uuid4().hex[:8]}"
                 row_id_map[str(vid)] = row_id
                 
-                # Extract row number if possible
-                row_num = extract_row_num(vid.stem)
-                title = vid.stem.replace("-Generated-", " - ") if "-Generated-" in vid.stem else vid.stem
+                # Clean up title: remove row number and underscores
+                title = vid.stem
+                # Remove row number prefix (e.g., "row13-" or "row13 ")
+                title = title.replace("-", " ")
+                # Split and remove first part if it's a row number
+                parts = title.split()
+                if parts and parts[0].lower().startswith("row"):
+                    title = " ".join(parts[1:])
+                # Replace underscores with spaces
+                title = title.replace("_", " ")
+                # Clean up extra spaces
+                title = " ".join(title.split())
                 
                 ws.append_row([
                     row_id, "Pending", title, "",  # No Drive_Raw
@@ -392,23 +420,41 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
                         processed_link = upload_file(str(processed_file), folder_name)
                         ok(f"Uploaded to Drive: {processed_link}")
                         
+                        # Generate thumbnail and upload to Drive
+                        thumb_link = ""
+                        try:
+                            thumb_path = vid.parent / f"{vid.stem}_thumb{vid.suffix}"
+                            if generate_thumbnail(vid, thumb_path):
+                                thumb_link = upload_file(str(thumb_path), folder_name)
+                                ok(f"Thumbnail uploaded: {thumb_link}")
+                                # Clean up thumbnail file
+                                try:
+                                    thumb_path.unlink()
+                                except Exception:
+                                    pass
+                        except Exception as e:
+                            warn(f"Thumbnail generation/upload failed: {e}")
+                        
                         # Update sheet with processing result using tracked Row_ID
                         try:
-                            from modules.sheet import _tab
+                            from modules.sheet import _tab, SCHEMA_VIDEOS
                             ws = _tab("2_Videos")
                             row_id = row_id_map.get(str(vid))
                             
                             if row_id:
-                                # Find the row with this Row_ID and update it
+                                # Find the row with this Row_ID and update it using cell values
                                 try:
-                                    all_rows = ws.get_all_records()
-                                    for idx, row in enumerate(all_rows, start=2):  # +2 for header + 1-index
-                                        if row.get("Row_ID") == row_id:
-                                            ws.update_cell(idx, 2, "Done")  # Status
-                                            ws.update_cell(idx, 7, processed_link)  # Process_Drive
-                                            ws.update_cell(idx, 9, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Process_Time
-                                            ws.update_cell(idx, 10, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Completed_Time
-                                            ws.update_cell(idx, 11, "Processed from local file")  # Notes
+                                    # Get all cells and find the Row_ID
+                                    cell_list = ws.get_all_values()
+                                    for idx, row in enumerate(cell_list, start=1):  # 1-indexed
+                                        if len(row) > 0 and row[0] == row_id:  # Row_ID is in column A (index 0)
+                                            # Update cells directly
+                                            ws.update_cell(idx, 2, "Done")  # Status (column B)
+                                            ws.update_cell(idx, 7, processed_link)  # Process_Drive (column G)
+                                            ws.update_cell(idx, 8, thumb_link)  # Drive_Thumb (column H)
+                                            ws.update_cell(idx, 9, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Process_Time (column I)
+                                            ws.update_cell(idx, 10, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Completed_Time (column J)
+                                            ws.update_cell(idx, 11, "Processed from local file")  # Notes (column K)
                                             ok(f"[sheet] Updated Row_ID {row_id} → Done")
                                             break
                                 except Exception as e:
