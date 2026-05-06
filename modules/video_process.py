@@ -304,34 +304,80 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
         err(f"Directory not found: {directory}")
         return 1
     
-    # Scan for video files in directory (recursive)
-    videos = []
-    for ext in VIDEO_EXTS:
-        videos.extend(directory.rglob(f"*{ext}"))
-        videos.extend(directory.rglob(f"*{ext.upper()}"))
+    # Scan folders and filter out those with processed files
+    available_folders = []
+    console.print(f"[cyan]Scanning {directory} for folders...[/cyan]")
     
-    # Filter for files with "Generated" in name and not already processed
-    unprocessed = []
-    for video in videos:
-        if (video.stem.endswith("_processed") or 
-            "-Processed-" in video.stem or 
-            "_thumb" in video.stem):
+    for folder in directory.iterdir():
+        if not folder.is_dir():
             continue
-        # Only include files with "Generated" in the name
-        if "Generated" not in video.stem:
+            
+        # Check for video files in this folder
+        folder_videos = []
+        for ext in VIDEO_EXTS:
+            folder_videos.extend(folder.glob(f"*{ext}"))
+            folder_videos.extend(folder.glob(f"*{ext.upper()}"))
+        
+        if not folder_videos:
             continue
-        unprocessed.append(video)
+            
+        # Check if any file is processed or if folder has multiple videos
+        has_processed = False
+        generated_files = []
+        
+        for video in folder_videos:
+            if (video.stem.endswith("_processed") or 
+                "-Processed-" in video.stem or 
+                "_thumb" in video.stem):
+                has_processed = True
+                break
+            if "Generated" in video.stem:
+                generated_files.append(video)
+        
+        # Skip folder if has processed files or no generated files
+        if has_processed or not generated_files:
+            continue
+            
+        # Add folder and its generated files
+        available_folders.append({
+            'folder': folder,
+            'videos': generated_files
+        })
     
-    if not unprocessed:
-        warn(f"No unprocessed video files found in {directory}")
+    if not available_folders:
+        warn(f"No folders with unprocessed 'Generated' videos found in {directory}")
         return 0
+    
+    # Show available folders and files to user
+    console.print()
+    console.print(f"[bold green]Found {len(available_folders)} folder(s) with unprocessed videos:[/bold green]")
+    console.print()
+    
+    for i, folder_info in enumerate(available_folders, 1):
+        folder = folder_info['folder']
+        videos = folder_info['videos']
+        console.print(f"  [cyan]{i}.[/cyan] [dim]{folder.name}[/dim]")
+        for video in videos:
+            console.print(f"     └─ {video.name}")
+    
+    console.print()
+    
+    # Ask for quantity
+    if max_files == 0:
+        from modules.console_utils import _int
+        max_files = _int("How many videos to process? (0=all)", 0)
+    
+    # Collect videos from folders
+    unprocessed = []
+    for folder_info in available_folders:
+        unprocessed.extend(folder_info['videos'])
     
     # Apply quantity limit
     if max_files > 0:
         unprocessed = unprocessed[:max_files]
         ok(f"Processing {len(unprocessed)} video file(s) (limited to {max_files})")
     else:
-        ok(f"Found {len(unprocessed)} video file(s) with 'Generated' to process")
+        ok(f"Processing all {len(unprocessed)} video file(s)")
     
     # Mark files as pending in sheet and track Row_IDs
     row_id_map = {}  # Map video file to Row_ID
