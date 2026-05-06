@@ -270,7 +270,7 @@ Examples:
     p.add_argument("--setup",      action="store_true", help="Initialize sheet tabs (run once)")
     p.add_argument("--credits",    action="store_true", help="Check account credit balances")
     p.add_argument("--dry-run",    action="store_true", help="Check credits without logging to sheet")
-    p.add_argument("--concurrency",type=int, default=1, help="Parallel account checking (default: 1, recommended: 2-3 for GitHub Actions)")
+    p.add_argument("--concurrency",type=int, default=2, help="Parallel account checking (default: 2, recommended: 2-3 for GitHub Actions)")
     p.add_argument("--health",     action="store_true", help="Run health check")
     return p.parse_args()
 
