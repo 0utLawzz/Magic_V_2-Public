@@ -97,9 +97,19 @@ def scan_videos(base: Path) -> list[Path]:
 
 # ── FFmpeg encode profiles ─────────────────────────────────────────────────────
 PROFILES = {
-    "720p":     {"label": "720p — Fast",      "resolution": "1280x720",  "crf": 23, "preset": "fast",     "audio_br": "128k"},
-    "1080p":    {"label": "1080p — Standard", "resolution": "1920x1080", "crf": 23, "preset": "veryfast", "audio_br": "128k"},
-    "1080p_hq": {"label": "1080p HQ — Slow",  "resolution": "1920x1080", "crf": 18, "preset": "slow",     "audio_br": "192k"},
+    # Basic profiles
+    "720p":     {"label": "720p — Fast",                  "resolution": "1280x720",  "crf": 23, "preset": "fast",     "audio_br": "128k"},
+    "1080p":    {"label": "1080p — Standard",             "resolution": "1920x1080", "crf": 23, "preset": "veryfast", "audio_br": "128k"},
+    "1080p_hq": {"label": "1080p HQ — Slow",              "resolution": "1920x1080", "crf": 18, "preset": "slow",     "audio_br": "192k"},
+    
+    # YouTube-optimized profiles
+    "youtube_720p":   {"label": "YouTube 720p — Optimized", "resolution": "1280x720",  "crf": 21, "preset": "fast",     "audio_br": "128k", "movflags": "+faststart"},
+    "youtube_1080p":  {"label": "YouTube 1080p — Optimized","resolution": "1920x1080", "crf": 21, "preset": "fast",     "audio_br": "128k", "movflags": "+faststart"},
+    "youtube_4k":     {"label": "YouTube 4K — Optimized",   "resolution": "3840x2160", "crf": 22, "preset": "medium",   "audio_br": "192k", "movflags": "+faststart"},
+    
+    # Social media profiles
+    "tiktok":    {"label": "TikTok/Shorts 9:16",          "resolution": "1080x1920", "crf": 23, "preset": "fast",     "audio_br": "128k", "movflags": "+faststart"},
+    "instagram": {"label": "Instagram 1:1",               "resolution": "1080x1080", "crf": 23, "preset": "fast",     "audio_br": "128k", "movflags": "+faststart"},
 }
 
 
@@ -147,33 +157,41 @@ def build_ffmpeg_cmd(
         else:
             lref = "logo_s"
         filters.append(logo_scale)
-        filters.append(f"[base][{lref}]overlay={logo_x}:{logo_y}[vid_logo]")
-        main_v = "vid_logo"
+        filters.append(f"[base][{lref}]overlay={LOGO_X}:{LOGO_Y}[v_logo]")
+        vref = "v_logo"
     else:
-        main_v = "base"
+        vref = "base"
 
     if has_endscreen:
-        end_dur   = get_duration(Path(endscreen_path))
-        cross     = min(0.5, trim_dur * 0.04, end_dur * 0.3)
-        xfade_off = max(0, trim_dur - cross)
-        filters.append(f"[{end_idx}:v]trim=duration={end_dur:.3f},setpts=PTS-STARTPTS,{scale}[end_v]")
-        filters.append(f"[{end_idx}:a]atrim=duration={end_dur:.3f},asetpts=PTS-STARTPTS[end_a]")
-        filters.append(f"[{main_v}][end_v]xfade=transition=fade:duration={cross:.3f}:offset={xfade_off:.3f}[final_v]")
-        filters.append(f"[main_a][end_a]acrossfade=d={cross:.3f}[final_a]")
-        map_v, map_a = "[final_v]", "[final_a]"
-    else:
-        map_v = f"[{main_v}]"
-        map_a = "[main_a]" if input_has_audio else None
+        filters.append(f"[{end_idx}:v]scale={w}:{h}[end_s]")
+        filters.append(f"[{vref}][end_s]concat=n=1:v=1:a=0[v_final]")
+        vref = "v_final"
 
-    cmd = (["ffmpeg", "-y"] + inputs +
-           ["-filter_complex", ";".join(filters),
-            "-map", map_v])
+    # Build final filter chain
+    if input_has_audio:
+        filters.append(f"[{vref}][main_a]concat=n=1:v=1:a=1[v_out][a_out]")
+        map_v = "[v_out]"
+        map_a = "[a_out]"
+    else:
+        filters.append(vref)
+        map_v = "[0]"
+        map_a = None
+
+    # Build command
+    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", ";".join(filters), "-map", map_v]
     if map_a:
         cmd += ["-map", map_a, "-c:a", "aac", "-b:a", ab]
     else:
         cmd += ["-an"]
-    cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-            "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_file)]
+    
+    # Video encoding settings
+    cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p"]
+    
+    # Add movflags if specified in profile
+    if profile.get("movflags"):
+        cmd += ["-movflags", profile["movflags"]]
+    
+    cmd += [str(output_file)]
     return cmd
 
 
@@ -261,7 +279,7 @@ def process_video(input_video: Path, dry_run: bool = False, profile: str = "1080
 
 
 # ── Public: process local files (Mode 2 Local) ────────────────────────────────
-def process_local_files(directory: Path, upload: bool = False, profile: str = "1080p") -> int:
+def process_local_files(directory: Path, upload: bool = False, profile: str = "1080p", max_files: int = 0) -> int:
     """Process video files from local directory and optionally update sheet."""
     if not directory.exists():
         err(f"Directory not found: {directory}")
@@ -286,7 +304,12 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
         warn(f"No unprocessed video files found in {directory}")
         return 0
     
-    ok(f"Found {len(unprocessed)} video file(s) to process")
+    # Apply quantity limit
+    if max_files > 0:
+        unprocessed = unprocessed[:max_files]
+        ok(f"Processing {len(unprocessed)} video file(s) (limited to {max_files})")
+    else:
+        ok(f"Found {len(unprocessed)} video file(s) to process")
     
     ok_count = fail_count = 0
     for i, vid in enumerate(unprocessed, 1):

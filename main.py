@@ -153,17 +153,27 @@ def mode2(args=None):
             err(f"Directory not found: {dir_path}")
             return
         
+        # Get quantity limit
+        max_files = getattr(args, "max", 0)
+        if max_files == 0:
+            max_files = _int("How many videos to process? (0=all)", 0)
+        
         upload = getattr(args, "upload", None)
         if upload is None: upload = _bool("Upload processed video to Drive?", s.get("upload", True))
         
         console.print()
+        console.print("[bold cyan]Available Profiles:[/bold cyan]")
         for i, (k, v) in enumerate(PROFILES.items(), 1):
             console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
-        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1/2/3, default 2)[/dim]: ").strip()
-        profile = list(PROFILES.keys())[int(pi)-1] if pi.isdigit() and 1<=int(pi)<=3 else "1080p"
+        
+        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1-8, default 4 for YouTube 1080p)[/dim]: ").strip()
+        if pi.isdigit() and 1 <= int(pi) <= len(PROFILES):
+            profile = list(PROFILES.keys())[int(pi)-1]
+        else:
+            profile = "youtube_1080p"  # Default to YouTube optimized
         
         console.print()
-        process_local_files(dir_path, upload=upload, profile=profile)
+        process_local_files(dir_path, upload=upload, profile=profile, max_files=max_files)
     else:
         # Sheet-based processing mode (original)
         qty    = getattr(args, "max", 0) or _int("How many? (0=all pending in Tab2)", 0)
@@ -292,7 +302,8 @@ def _args():
 Examples:
   python main.py --mode 1 --max 5 --headless      # Generate 5 stories headless
   python main.py --mode 2 --upload               # Process videos from sheet and upload to Drive
-  python main.py --mode 2 --local --upload       # Process local videos and upload to Drive
+  python main.py --mode 2 --local --upload --max 3 # Process 3 local videos and upload to Drive
+  python main.py --mode 2 --local --max 5        # Process 5 local videos without upload
   python main.py --credits                       # Check all account credits
   python main.py --health                        # Run health check
   python main.py                                 # Interactive menu
