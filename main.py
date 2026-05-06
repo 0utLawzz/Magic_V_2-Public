@@ -244,7 +244,7 @@ def menu():
     elif ch == "4": mode_full()
     elif ch == "S": run_setup()
     elif ch == "C":
-        run_credits(headless=True)
+        run_credits(headless=True, concurrency=2)
     elif ch == "H": run_health()
     else: warn("Unknown choice.")
 
