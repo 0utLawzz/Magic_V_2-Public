@@ -135,8 +135,13 @@ def mode2(args=None):
     s = _load()
     console.print(); rule("Mode 2 — Video Process", style="cyan"); console.print()
 
-    # Check if local mode is requested
-    local_mode = getattr(args, "local", False)
+    # Ask for Local or Remote mode
+    console.print("[bold cyan]Select processing mode:[/bold cyan]")
+    console.print("  [cyan]1[/cyan]  Remote (Sheet-based) - Process from Google Sheet Tab 2")
+    console.print("  [cyan]2[/cyan]  Local (Folder-based) - Process files from local folder")
+    
+    mode_choice = console.input("  [bold cyan]Mode[/bold cyan] [dim](1/2, default 1)[/dim]: ").strip()
+    local_mode = (mode_choice == "2")
     
     if local_mode:
         # Local file processing mode
@@ -166,7 +171,7 @@ def mode2(args=None):
         for i, (k, v) in enumerate(PROFILES.items(), 1):
             console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
         
-        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1-8, default 4 for YouTube 1080p)[/dim]: ").strip()
+        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1-8, default 5 for YouTube 1080p)[/dim]: ").strip()
         if pi.isdigit() and 1 <= int(pi) <= len(PROFILES):
             profile = list(PROFILES.keys())[int(pi)-1]
         else:
@@ -183,8 +188,11 @@ def mode2(args=None):
         console.print()
         for i, (k, v) in enumerate(PROFILES.items(), 1):
             console.print(f"  [cyan]{i}[/cyan]  {v['label']}")
-        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1/2/3, default 2)[/dim]: ").strip()
-        profile = list(PROFILES.keys())[int(pi)-1] if pi.isdigit() and 1<=int(pi)<=3 else "1080p"
+        pi = console.input("  [bold cyan]Profile[/bold cyan] [dim](1-8, default 5 for YouTube 1080p)[/dim]: ").strip()
+        if pi.isdigit() and 1 <= int(pi) <= len(PROFILES):
+            profile = list(PROFILES.keys())[int(pi)-1]
+        else:
+            profile = "youtube_1080p"
 
         _save({**s, "upload": upload, "profile": profile})
         console.print()
@@ -269,8 +277,7 @@ def menu():
     mt.add_column("l", style="bold white", width=22)
     mt.add_column("d", style="dim")
     mt.add_row("1",  "Video Making",    "Tab 1 — Generate from MagicLight.ai")
-    mt.add_row("2",  "Video Process",   "Tab 2 — FFmpeg: logo + trim + endscreen")
-    mt.add_row("2L", "Video Process",   "Local files — Process & upload to Drive")
+    mt.add_row("2",  "Video Process",   "Tab 2 — FFmpeg: logo + trim + endscreen (Local/Remote)")
     mt.add_row("3",  "YouTube Upload",  "Tab 3→4 — Post processed video to YouTube")
     mt.add_row("4",  "Full Pipeline",   "Run all 3 modes in sequence")
     mt.add_row("─",  "──────────────",  "─────────────────────────────────────────")
@@ -279,12 +286,9 @@ def menu():
     mt.add_row("H",  "Health Check",    "Verify packages, FFmpeg, secrets, assets")
     console.print(mt); console.print()
 
-    ch = console.input("  [bold cyan]Select [1/2/2L/3/4/S/C/H]: [/bold cyan]").strip().upper()
+    ch = console.input("  [bold cyan]Select [1/2/3/4/S/C/H]: [/bold cyan]").strip().upper()
     if   ch == "1": mode1()
     elif ch == "2": mode2()
-    elif ch == "2L": 
-        args = type('Args', (), {'local': True, 'upload': None})()
-        mode2(args)
     elif ch == "3": mode3()
     elif ch == "4": mode_full()
     elif ch == "S": run_setup()
@@ -302,11 +306,9 @@ def _args():
 Examples:
   python main.py --mode 1 --max 5 --headless      # Generate 5 stories headless
   python main.py --mode 2 --upload               # Process videos from sheet and upload to Drive
-  python main.py --mode 2 --local --upload --max 3 # Process 3 local videos and upload to Drive
-  python main.py --mode 2 --local --max 5        # Process 5 local videos without upload
   python main.py --credits                       # Check all account credits
   python main.py --health                        # Run health check
-  python main.py                                 # Interactive menu
+  python main.py                                 # Interactive menu (Mode 2 has Local/Remote options)
         """
     )
     p.add_argument("--mode",       choices=["1","2","3","full"], help="Pipeline mode: 1=Generate, 2=Process, 3=YouTube, full=All")
@@ -318,7 +320,6 @@ Examples:
     p.add_argument("--credits",    action="store_true", help="Check account credit balances")
     p.add_argument("--dry-run",    action="store_true", help="Check credits without logging to sheet")
     p.add_argument("--concurrency",type=int, default=2, help="Parallel account checking (default: 2, recommended: 2-3 for GitHub Actions)")
-    p.add_argument("--local",      action="store_true", help="Process local files instead of sheet data (Mode 2 only)")
     p.add_argument("--health",     action="store_true", help="Run health check")
     return p.parse_args()
 

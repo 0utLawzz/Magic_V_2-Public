@@ -291,12 +291,15 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
         videos.extend(directory.rglob(f"*{ext}"))
         videos.extend(directory.rglob(f"*{ext.upper()}"))
     
-    # Filter out already processed files
+    # Filter for files with "Generated" in name and not already processed
     unprocessed = []
     for video in videos:
         if (video.stem.endswith("_processed") or 
             "-Processed-" in video.stem or 
             "_thumb" in video.stem):
+            continue
+        # Only include files with "Generated" in the name
+        if "Generated" not in video.stem:
             continue
         unprocessed.append(video)
     
@@ -309,7 +312,37 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
         unprocessed = unprocessed[:max_files]
         ok(f"Processing {len(unprocessed)} video file(s) (limited to {max_files})")
     else:
-        ok(f"Found {len(unprocessed)} video file(s) to process")
+        ok(f"Found {len(unprocessed)} video file(s) with 'Generated' to process")
+    
+    # Mark files as pending in sheet and track Row_IDs
+    row_id_map = {}  # Map video file to Row_ID
+    if upload:
+        try:
+            from modules.sheet import _tab
+            ws = _tab("2_Videos")
+            
+            console.print()
+            info(f"Marking {len(unprocessed)} file(s) as pending in sheet...")
+            for vid in unprocessed:
+                import uuid
+                row_id = f"LOCAL_{uuid.uuid4().hex[:8]}"
+                row_id_map[str(vid)] = row_id
+                
+                # Extract row number if possible
+                row_num = extract_row_num(vid.stem)
+                title = vid.stem.replace("-Generated-", " - ") if "-Generated-" in vid.stem else vid.stem
+                
+                ws.append_row([
+                    row_id, "Pending", title, "",  # No Drive_Raw
+                    str(vid), "1080p", "", "",  # No Drive_Thumb, no Process_Drive yet
+                    "", "",  # YouTube fields
+                    "", "",  # Process_Time, Process_Drive
+                    "",  # Completed_Time
+                    "Queued from local folder"
+                ])
+                ok(f"[sheet] Marked pending: {vid.name} (Row_ID: {row_id})")
+        except Exception as e:
+            warn(f"[sheet] Failed to mark pending: {e}")
     
     ok_count = fail_count = 0
     for i, vid in enumerate(unprocessed, 1):
@@ -359,10 +392,31 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
                         processed_link = upload_file(str(processed_file), folder_name)
                         ok(f"Uploaded to Drive: {processed_link}")
                         
-                        # Ask if user wants to update sheet
-                        update_sheet = console.input("  [bold cyan]Update sheet with this result?[/bold cyan] [dim](Y/N)[/dim]: ").strip().upper()
-                        if update_sheet == "Y":
-                            _update_sheet_for_local_file(vid, processed_file, processed_link)
+                        # Update sheet with processing result using tracked Row_ID
+                        try:
+                            from modules.sheet import _tab
+                            ws = _tab("2_Videos")
+                            row_id = row_id_map.get(str(vid))
+                            
+                            if row_id:
+                                # Find the row with this Row_ID and update it
+                                try:
+                                    all_rows = ws.get_all_records()
+                                    for idx, row in enumerate(all_rows, start=2):  # +2 for header + 1-index
+                                        if row.get("Row_ID") == row_id:
+                                            ws.update_cell(idx, 2, "Done")  # Status
+                                            ws.update_cell(idx, 7, processed_link)  # Process_Drive
+                                            ws.update_cell(idx, 9, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Process_Time
+                                            ws.update_cell(idx, 10, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Completed_Time
+                                            ws.update_cell(idx, 11, "Processed from local file")  # Notes
+                                            ok(f"[sheet] Updated Row_ID {row_id} → Done")
+                                            break
+                                except Exception as e:
+                                    warn(f"[sheet] Failed to update row: {e}")
+                            else:
+                                warn(f"[sheet] No Row_ID found for {vid.name}")
+                        except Exception as e:
+                            warn(f"[sheet] Failed to update: {e}")
                     else:
                         warn(f"Processed file not found for upload. Checked: {vid.parent}")
                         # List all files in directory for debugging
@@ -382,26 +436,23 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
 def _update_sheet_for_local_file(original_file: Path, processed_file: Path, drive_link: str):
     """Update sheet with local file processing results."""
     try:
-        from modules.sheet import append_row, SCHEMA_VIDEOS
+        from modules.sheet import _tab, SCHEMA_VIDEOS
         import uuid
         
         # Generate a unique Row_ID for local files
         row_id = f"LOCAL_{uuid.uuid4().hex[:8]}"
         
-        # Append to Videos tab
-        append_row(
-            "2_Videos", SCHEMA_VIDEOS,
-            Row_ID         = row_id,
-            Title          = original_file.stem,
-            Local_Path     = str(processed_file),
-            Drive_Raw      = "",  # No raw video for local files
-            Drive_Thumb    = "",
-            Status         = "Done",
-            Process_Time   = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            Process_Drive  = drive_link,
-            Completed_Time = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            Notes          = "Processed from local file"
-        )
+        # Append to Videos tab using worksheet's append_row
+        ws = _tab("2_Videos")
+        ws.append_row([
+            row_id, "Done", original_file.stem, "",  # No Drive_Raw for local files
+            str(processed_file), "1080p", drive_link, "",  # No Drive_Thumb
+            "", "",  # YouTube fields
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # Process_Time
+            drive_link,  # Process_Drive
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # Completed_Time
+            "Processed from local file"
+        ])
         ok(f"[sheet] Added to Videos tab with Row_ID: {row_id}")
     except Exception as e:
         warn(f"[sheet] Failed to update: {e}")
