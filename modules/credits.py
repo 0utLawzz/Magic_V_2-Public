@@ -22,7 +22,7 @@ from modules.video_gen import login, _logout
 
 
 def _check_single_account(email: str, password: str, headless: bool, dry_run: bool, credit_threshold: int):
-    """Check a single account's credits (thread-safe)."""
+    """Check a single account's credits (process-safe)."""
     result = {"email": email, "credits": 0, "status": "Failed"}
     try:
         pw = sync_playwright().start()
@@ -83,14 +83,19 @@ def check_all_accounts(headless: bool = False, dry_run: bool = False, credit_thr
         warn("[Credits Check] Dry-run mode - will NOT log to sheet")
     else:
         rule("Starting Engine 🚀", style="cyan")
+    
+    # Note: Parallel mode disabled due to Playwright Sync API conflicts with ThreadPoolExecutor
     if concurrency > 1:
-        info(f"[Credits Check] Parallel mode: {concurrency} concurrent accounts")
+        warn(f"[Credits Check] Parallel mode disabled due to Playwright conflicts - running sequentially")
+        concurrency = 1
+    
     ok(f"[Credits Check] {len(accounts)} account(s) found")
     console.print()
 
     checked = failed = 0
     results = []  # Track results for summary table
 
+    # Sequential execution (Playwright Sync API conflicts with threading)
     with Progress(
         TextColumn("[bold cyan]{task.description}"),
         BarColumn(),
@@ -100,30 +105,18 @@ def check_all_accounts(headless: bool = False, dry_run: bool = False, credit_thr
     ) as progress:
         task = progress.add_task("[Credits] Checking accounts...", total=len(accounts))
         
-        # Use ThreadPoolExecutor for parallel checking
-        with ThreadPoolExecutor(max_workers=concurrency) as executor:
-            # Submit all tasks
-            future_to_account = {
-                executor.submit(_check_single_account, email, password, headless, dry_run, credit_threshold): (email, password)
-                for email, password in accounts
-            }
+        for idx, (email, password) in enumerate(accounts, 1):
+            console.print()
+            rule(f"Account {idx}/{len(accounts)}", style="dim")
+            info(f"[Credits] Checking: {email}")
             
-            # Process results as they complete
-            for future in as_completed(future_to_account):
-                email, _ = future_to_account[future]
-                try:
-                    result = future.result()
-                    results.append(result)
-                    if result["status"] == "Success":
-                        checked += 1
-                    else:
-                        failed += 1
-                    progress.update(task, advance=1)
-                except Exception as e:
-                    err(f"[Credits] Exception for {email}: {e}")
-                    failed += 1
-                    results.append({"email": email, "credits": 0, "status": "Failed"})
-                    progress.update(task, advance=1)
+            result = _check_single_account(email, password, headless, dry_run, credit_threshold)
+            results.append(result)
+            if result["status"] == "Success":
+                checked += 1
+            else:
+                failed += 1
+            progress.update(task, advance=1)
 
     console.print()
     rule("Credit Check Complete ✅", style="green")
