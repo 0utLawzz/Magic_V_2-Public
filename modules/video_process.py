@@ -323,13 +323,38 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
             # Upload to Drive if requested
             if upload:
                 try:
-                    processed_file = vid.parent / f"{vid.stem}_processed{vid.suffix}"
-                    if not processed_file.exists():
-                        # Try alternative naming convention
-                        safe_name = make_processed_name(999, vid.stem)
-                        processed_file = vid.parent / f"{safe_name}{vid.suffix}"
+                    # Try multiple naming conventions for processed file
+                    processed_file = None
                     
-                    if processed_file.exists():
+                    # Option 1: Standard naming
+                    candidate = vid.parent / f"{vid.stem}_processed{vid.suffix}"
+                    if candidate.exists():
+                        processed_file = candidate
+                    
+                    # Option 2: Row-based naming (from make_processed_name)
+                    if not processed_file:
+                        row_num = extract_row_num(vid.stem)
+                        if row_num:
+                            if "-Generated-" in vid.stem:
+                                title_part = vid.stem.split("-Generated-", 1)[1]
+                            elif "_" in vid.stem:
+                                title_part = vid.stem.split("_", 1)[1]
+                            else:
+                                title_part = vid.stem
+                            
+                            safe_name = make_processed_name(row_num, title_part)
+                            candidate = vid.parent / f"{safe_name}{vid.suffix}"
+                            if candidate.exists():
+                                processed_file = candidate
+                    
+                    # Option 3: Search for any processed file in the same directory
+                    if not processed_file:
+                        for f in vid.parent.glob("*Processed*"):
+                            if f.suffix == vid.suffix and vid.stem in f.stem:
+                                processed_file = f
+                                break
+                    
+                    if processed_file and processed_file.exists():
                         folder_name = directory.name or "Local_Processed"
                         processed_link = upload_file(str(processed_file), folder_name)
                         ok(f"Uploaded to Drive: {processed_link}")
@@ -339,7 +364,10 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
                         if update_sheet == "Y":
                             _update_sheet_for_local_file(vid, processed_file, processed_link)
                     else:
-                        warn("Processed file not found for upload")
+                        warn(f"Processed file not found for upload. Checked: {vid.parent}")
+                        # List all files in directory for debugging
+                        files = [f.name for f in vid.parent.glob("*.mp4")]
+                        info(f"Available files: {files}")
                 except Exception as e:
                     err(f"Upload failed: {e}")
         else:
