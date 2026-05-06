@@ -376,7 +376,73 @@ def process_local_files(directory: Path, upload: bool = False, profile: str = "1
     for i, vid in enumerate(unprocessed, 1):
         console.rule(f"[cyan][{i}/{len(unprocessed)}]  {vid.name}[/cyan]")
         
-        # Process the video
+        # Check if already processed
+        processed_file = None
+        for ext in [".mp4", ".MP4"]:
+            candidate = vid.parent / f"{vid.stem}_processed{ext}"
+            if candidate.exists():
+                processed_file = candidate
+                break
+        
+        if processed_file:
+            info(f"Already processed — skipping ({processed_file.name})")
+            ok_count += 1
+            
+            # Upload to Drive if requested (user still wants it uploaded)
+            if upload:
+                try:
+                    folder_name = directory.name or "Local_Processed"
+                    processed_link = upload_file(str(processed_file), folder_name)
+                    ok(f"Uploaded to Drive: {processed_link}")
+                    
+                    # Generate thumbnail and upload to Drive
+                    thumb_link = ""
+                    try:
+                        thumb_path = vid.parent / f"{vid.stem}_thumb{vid.suffix}"
+                        if generate_thumbnail(vid, thumb_path):
+                            thumb_link = upload_file(str(thumb_path), folder_name)
+                            ok(f"Thumbnail uploaded: {thumb_link}")
+                            # Clean up thumbnail file
+                            try:
+                                thumb_path.unlink()
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        warn(f"Thumbnail generation/upload failed: {e}")
+                    
+                    # Update sheet with processing result using tracked Row_ID
+                    try:
+                        from modules.sheet import _tab, SCHEMA_VIDEOS
+                        ws = _tab("2_Videos")
+                        row_id = row_id_map.get(str(vid))
+                        
+                        if row_id:
+                            # Find the row with this Row_ID and update it using cell values
+                            try:
+                                # Get all cells and find the Row_ID
+                                cell_list = ws.get_all_values()
+                                for idx, row in enumerate(cell_list, start=1):  # 1-indexed
+                                    if len(row) > 0 and row[0] == row_id:  # Row_ID is in column A (index 0)
+                                        # Update cells directly
+                                        ws.update_cell(idx, 2, "Done")  # Status (column B)
+                                        ws.update_cell(idx, 7, processed_link)  # Process_Drive (column G)
+                                        ws.update_cell(idx, 8, thumb_link)  # Drive_Thumb (column H)
+                                        ws.update_cell(idx, 9, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Process_Time (column I)
+                                        ws.update_cell(idx, 10, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))  # Completed_Time (column J)
+                                        ws.update_cell(idx, 11, "Processed from local file")  # Notes (column K)
+                                        ok(f"[sheet] Updated Row_ID {row_id} → Done")
+                                        break
+                            except Exception as e:
+                                warn(f"[sheet] Failed to update row: {e}")
+                        else:
+                            warn(f"[sheet] No Row_ID found for {vid.name}")
+                    except Exception as e:
+                        warn(f"[sheet] Failed to update: {e}")
+                except Exception as e:
+                    err(f"Upload failed: {e}")
+            continue  # Skip to next video
+        
+        # Process the video if not already processed
         success = process_video(vid, dry_run=False, profile=profile)
         if success:
             ok_count += 1
